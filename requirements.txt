@@ -1,0 +1,9 @@
+# Direct dependencies. Exact versions that were tested are in requirements-lock.txt (macOS, Python 3.12).
+manim>=0.19,<1
+trimesh>=4
+numpy>=1.26
+scipy>=1.11
+Pillow>=10
+gemmi>=0.6                  # reads mmCIF (atoms/chains) for mesh generation
+scikit-image>=0.22          # marching cubes for the built-in (no-PyMOL) mesh backend
+fast-simplification>=0.1    # mesh decimation used by trimesh

@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+*.log
+nohup.out
+
+# Manim output
+media/
+
+# Downloaded automatically from RCSB
+assets/*.cif
+
+# Ray-traced turntable frames (regenerate with ./render.sh frames-fast)
+assets/pymol_frames*/
