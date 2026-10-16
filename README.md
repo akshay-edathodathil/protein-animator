@@ -105,6 +105,8 @@ Videos are written to `media/videos/...` (ignored by git). Add `-p` to open the 
 
 ## 3. Show how a protein changes over time (multiple PDB files)
 
+> **Using your own files?** Step-by-step guide for both this and the density pipeline: [`docs/CUSTOM_DATA.md`](docs/CUSTOM_DATA.md).
+
 Give the pipeline several structures in time order (separate PDB/mmCIF files, a folder, or a multi-model file such as an NMR ensemble or MD snapshots). It produces a video with a (nearly) fixed camera where you watch the structure move.
 
 ```bash
@@ -151,6 +153,8 @@ The video path is printed at the end (`assets/trajectory/media/videos/trajectory
 
 ## 4. Show how the *data* change across a series (structure factors -> electron density)
 
+> **Using your own data?** Accepted file formats/columns, naming, options and checks: [`docs/CUSTOM_DATA.md`](docs/CUSTOM_DATA.md).
+
 Use this when the refined PDB models of a series barely differ but the diffraction data do (e.g. successive datasets on one crystal, temperature series). Each dataset needs a model (`<ID>.cif`) **and** its structure-factor file (`<ID>-sf.cif`), both from RCSB.
 
 ```bash
@@ -159,7 +163,7 @@ Use this when the refined PDB models of a series barely differ but the diffracti
 ./render.sh density --ids 5KUL,5KUN,5KUO,5KUQ,5KUR,5KUS,5KUU,5KUV,5KUW --title "CypA, 100 K"   # the 100 K series
 ./render.sh density --ids ID1,ID2,ID3 --focus 12,45,67 --title "My series"                     # your own entries
 ```
-Files are read from `ProteinTimeSeries/` (`<ID>.cif`, `<ID>-sf.cif`) and downloaded from RCSB when missing. The video path is printed at the end (`assets/density/media/...`).
+Files are read from `ProteinTimeSeries/` (model `<ID>.cif`/`.pdb` + structure factors `<ID>-sf.cif`/`<ID>.mtz`) and downloaded from RCSB when missing (real PDB IDs only). The video path is printed at the end (`assets/density/media/...`).
 
 **What it does** (`scripts/density_prepare.py`)
 1. Reads intensities, F_calc and phases from each `-sf.cif`; Fo = sqrt(max(I, 0)), scaled onto |Fc| with a resolution-dependent factor.
@@ -214,6 +218,7 @@ Not measured: OpenGL/Cairo at 1080p/4K, and Cairo with the current 15,000-face s
 
 ## 7. More
 
+- **Using your own data (step by step):** [`docs/CUSTOM_DATA.md`](docs/CUSTOM_DATA.md)
 - **How the code works:** [`docs/CODE_GUIDE.md`](docs/CODE_GUIDE.md)
 - Project layout:
 ```

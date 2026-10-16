@@ -25,7 +25,7 @@ lvl_e, lvl_d = meta["twofofc_contour"], meta["diff_contour"]
 # making contours incomparable between datasets).
 cmd.set("normalize_ccp4_maps", 0)
 for i in ids:
-    cmd.load(os.path.join(cfg["data_dir"], f"{i}.cif"), f"m{i}")
+    cmd.load(os.path.join(cfg["data_dir"], meta["models"][i]), f"m{i}")
     cmd.load(os.path.join(maps, f"{i}_2fofc.ccp4"), f"e{i}", format="ccp4")
     if i != ids[0]:
         cmd.load(os.path.join(maps, f"{i}_diff.ccp4"), f"d{i}", format="ccp4")

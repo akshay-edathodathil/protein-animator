@@ -15,6 +15,7 @@ Used by scripts/render_density.py.
 """
 import argparse
 import json
+import re
 from pathlib import Path
 from urllib.request import urlretrieve
 
@@ -24,14 +25,46 @@ SERIES_278K = ["5KUZ", "5KV0", "5KV1", "5KV2", "5KV3", "5KV4", "5KV5", "5KV6", "
 SERIES_100K = ["5KUL", "5KUN", "5KUO", "5KUQ", "5KUR", "5KUS", "5KUU", "5KUV", "5KUW"]
 
 
-def fetch(data_dir: Path, pdb_id: str):
+MODEL_EXT = (".cif", ".pdb", ".ent")
+SF_PATTERNS = ("{id}-sf.cif", "{id}.mtz", "{id}-sf.mtz")
+
+# Column names recognised in structure-factor files (RCSB mmCIF-derived, Phenix, Refmac, CCP4 conventions)
+OBS_I = ("IMEAN", "I", "I-obs", "IOBS", "I_obs")
+SIG_I = ("SIGIMEAN", "SIGI", "SIGI-obs", "SIGIOBS", "SIGI_obs")
+OBS_F = ("F", "FP", "F-obs", "F-obs-filtered", "FOBS", "F_obs")
+SIG_F = ("SIGF", "SIGFP", "SIGF-obs", "SIGF-obs-filtered", "SIGFOBS", "SIGF_obs")
+FCALC = ("FC", "FC_ALL", "F-model", "FMODEL", "FC_ALL_LS")
+PHICALC = ("PHIC", "PHIC_ALL", "PHIF-model", "PHIFMODEL", "PHIC_ALL_LS")
+
+
+def find_files(data_dir: Path, ident: str, download=True):
+    """Locate <ID> model (.cif/.pdb/.ent) and structure factors (-sf.cif / .mtz / -sf.mtz); download PDB IDs if missing."""
     data_dir.mkdir(parents=True, exist_ok=True)
-    for suffix in ("", "-sf"):
-        f = data_dir / f"{pdb_id}{suffix}.cif"
-        if not f.exists():
-            print(f"Downloading {f.name}")
-            urlretrieve(f"https://files.rcsb.org/download/{f.name}", f)
-    return data_dir / f"{pdb_id}.cif", data_dir / f"{pdb_id}-sf.cif"
+
+    def look():
+        model = next((data_dir / f"{ident}{e}" for e in MODEL_EXT if (data_dir / f"{ident}{e}").exists()), None)
+        sf = next((data_dir / pat.format(id=ident) for pat in SF_PATTERNS if (data_dir / pat.format(id=ident)).exists()), None)
+        return model, sf
+
+    model, sf = look()
+    if (model is None or sf is None) and download and re.fullmatch(r"[0-9][A-Za-z0-9]{3}", ident):
+        for name in ([f"{ident}.cif"] if model is None else []) + ([f"{ident}-sf.cif"] if sf is None else []):
+            print(f"Downloading {name} from RCSB")
+            urlretrieve(f"https://files.rcsb.org/download/{name}", data_dir / name)
+        model, sf = look()
+    if model is None or sf is None:
+        raise SystemExit(
+            f"Dataset '{ident}': missing files in {data_dir}/\n"
+            f"  model:            {ident}.cif | {ident}.pdb | {ident}.ent   {'(found)' if model else '(MISSING)'}\n"
+            f"  structure factors: {ident}-sf.cif | {ident}.mtz | {ident}-sf.mtz   {'(found)' if sf else '(MISSING)'}")
+    return model, sf
+
+
+def _pick(cols, names, what, path):
+    for n in names:
+        if n in cols:
+            return n
+    raise SystemExit(f"{path.name}: no {what} column found (looked for {', '.join(names)}). Columns present: {cols}")
 
 
 def load_dataset(model_path: Path, sf_path: Path):
@@ -39,19 +72,28 @@ def load_dataset(model_path: Path, sf_path: Path):
 
     st = gemmi.read_structure(str(model_path))
     st.setup_entities()
-    rb = gemmi.as_refln_blocks(gemmi.cif.read(str(sf_path)))[0]
-    mtz = gemmi.CifToMtz().convert_block_to_mtz(rb)
+    if sf_path.suffix.lower() == ".cif":
+        rb = gemmi.as_refln_blocks(gemmi.cif.read(str(sf_path)))[0]
+        mtz = gemmi.CifToMtz().convert_block_to_mtz(rb)
+    else:
+        mtz = gemmi.read_mtz_file(str(sf_path))
     cols = mtz.column_labels()
     a = mtz.array
-    need = ("IMEAN", "SIGIMEAN", "FC", "PHIC")
-    if any(c not in cols for c in need):
-        raise SystemExit(f"{sf_path.name}: needs intensities + F_calc/phase_calc columns, found {cols}")
-    d = {c: a[:, cols.index(c)].astype(float) for c in cols if c not in ("H", "K", "L")}
+    col = lambda c: a[:, cols.index(c)].astype(float)
+    fc_name = _pick(cols, FCALC, "calculated structure factor (F_calc)", sf_path)
+    phi_name = _pick(cols, PHICALC, "calculated phase", sf_path)
+    if any(c in cols for c in OBS_I):
+        i_name = _pick(cols, OBS_I, "observed intensity", sf_path)
+        intens, sig = col(i_name), col(_pick(cols, SIG_I, "intensity sigma", sf_path))
+    else:  # amplitudes: store as pseudo-intensities so the rest of the pipeline is uniform
+        f_name = _pick(cols, OBS_F, "observed intensity (I) or amplitude (F)", sf_path)
+        f, sf_ = col(f_name), col(_pick(cols, SIG_F, "amplitude sigma", sf_path))
+        intens, sig = f**2, 2 * np.abs(f) * sf_
     hkl = a[:, :3].round().astype(int)
     cell = st.cell if st.cell.is_crystal() else mtz.cell
     inv_d2 = np.array([cell.calculate_1_d2(h) for h in hkl.tolist()])
-    return {"st": st, "cell": cell, "sg": mtz.spacegroup, "hkl": hkl, "I": d["IMEAN"], "sig": d["SIGIMEAN"],
-            "fc": d["FC"], "phic": d["PHIC"], "inv_d2": inv_d2}
+    return {"st": st, "cell": cell, "sg": mtz.spacegroup, "hkl": hkl, "I": intens, "sig": sig,
+            "fc": col(fc_name), "phic": col(phi_name), "inv_d2": inv_d2}
 
 
 def scaled_fo(ds):
@@ -109,21 +151,31 @@ def residue_scores(st, diff_grids, noise):
 CYPA_ACTIVE_SITE = "55,60,61,63,72,101,102,103,111,113,121,122,126"
 
 
-def prepare(data_dir, ids, out, dmin, diff_dmin, focus=CYPA_ACTIVE_SITE, nsigma=3.0, fetch_missing=True):
+def prepare(data_dir, ids, out, dmin, diff_dmin, focus=CYPA_ACTIVE_SITE, nsigma=3.0, fetch_missing=True, labels=None):
     import gemmi
 
+    if labels and len(labels) != len(ids):
+        raise SystemExit(f"--labels has {len(labels)} entries but there are {len(ids)} datasets.")
     out = Path(out)
     (out / "maps").mkdir(parents=True, exist_ok=True)
     data = []
     for i in ids:
-        mp, sp = fetch(Path(data_dir), i) if fetch_missing else (Path(data_dir) / f"{i}.cif", Path(data_dir) / f"{i}-sf.cif")
+        mp, sp = find_files(Path(data_dir), i, fetch_missing)
         print(f"Loading {i}")
         ds = load_dataset(mp, sp)
         ds["id"] = i
+        ds["model_file"] = mp.name
         ds["fo_s"] = scaled_fo(ds)
         data.append(ds)
 
     ref = data[0]
+    for ds in data[1:]:
+        if ds["sg"].xhm() != ref["sg"].xhm():
+            raise SystemExit(f"{ds['id']} is in space group {ds['sg'].xhm()} but {ref['id']} is in {ref['sg'].xhm()}: "
+                             "difference maps need datasets from the same crystal form.")
+        dcell = max(abs(x - y) / y for x, y in zip(ds["cell"].parameters[:3], ref["cell"].parameters[:3]))
+        if dcell > 0.03:
+            print(f"WARNING: {ds['id']} cell differs from {ref['id']} by {dcell:.1%}; difference maps may be unreliable.")
     key = lambda h: (int(h[0]), int(h[1]), int(h[2]))
     ref_index = {key(h): j for j, h in enumerate(ref["hkl"])}
     sigma_ref, grids2, diffs = None, [], []
@@ -159,6 +211,8 @@ def prepare(data_dir, ids, out, dmin, diff_dmin, focus=CYPA_ACTIVE_SITE, nsigma=
             darr[:] = (darr - darr.mean()) / sigma_ref
             st_["diff_rms"] = float(darr.std())
             diffs.append(gd)
+        if labels:
+            st_["label"] = labels[n]
         stats.append(st_)
 
     # One fixed contour for every frame: +/- nsigma x sigma of the LAST (largest-change) difference map.
@@ -180,7 +234,7 @@ def prepare(data_dir, ids, out, dmin, diff_dmin, focus=CYPA_ACTIVE_SITE, nsigma=
         raise SystemExit("None of the --focus residues exist in the model.")
 
     meta = {"ids": ids, "dmin": dmin, "diff_dmin": diff_dmin, "sigma_ref": sigma_ref,
-            "diff_contour": round(contour, 4), "diff_nsigma": nsigma, "twofofc_contour": 1.0, "datasets": stats,
+            "diff_contour": round(contour, 4), "diff_nsigma": nsigma, "twofofc_contour": 1.0, "datasets": stats, "models": {d["id"]: d["model_file"] for d in data},
             "focus_residues": focus_res, "top_ranked": [{"resi": k[1], "resn": k[2], "score": round(sc, 2)} for sc, k in ranked[:10]]}
     (out / "meta.json").write_text(json.dumps(meta, indent=1))
     print(f"\nR_iso vs {ids[0]}:  " + "  ".join(f"{s['id']}={s['r_iso']:.3f}" for s in stats[1:]))
@@ -191,7 +245,7 @@ def prepare(data_dir, ids, out, dmin, diff_dmin, focus=CYPA_ACTIVE_SITE, nsigma=
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--dir", default="ProteinTimeSeries", help="folder with <ID>.cif and <ID>-sf.cif (downloaded if missing)")
+    ap.add_argument("--dir", default="ProteinTimeSeries", help="folder with <ID>.cif|.pdb and <ID>-sf.cif|<ID>.mtz per dataset (PDB IDs are downloaded if missing)")
     ap.add_argument("--ids", default=",".join(SERIES_278K), help="comma-separated PDB IDs in series order")
     ap.add_argument("--dmin", type=float, default=1.8, help="resolution limit for 2Fo-Fc maps (Å)")
     ap.add_argument("--diff-dmin", type=float, default=2.0, help="resolution limit for difference maps (Å)")
@@ -201,4 +255,4 @@ if __name__ == "__main__":
                     help="difference-map contour = this x sigma of the last difference map (same for all frames)")
     ap.add_argument("--out", default="assets/density")
     a = ap.parse_args()
-    prepare(a.dir, [s.strip().upper() for s in a.ids.split(",")], a.out, a.dmin, a.diff_dmin, a.focus, a.diff_nsigma)
+    prepare(a.dir, [s.strip() for s in a.ids.split(",")], a.out, a.dmin, a.diff_dmin, a.focus, a.diff_nsigma)

@@ -4,11 +4,14 @@
     python scripts/render_density.py                    # CypA 278 K series 5KUZ,5KV0..5KV7 (downloads missing files)
     python scripts/render_density.py --ids 5KUL,5KUN,5KUO,5KUQ,5KUR,5KUS,5KUU,5KUV,5KUW --title "CypA, 100 K"
 
-Files are looked up in --dir (default ProteinTimeSeries/) as <ID>.cif and <ID>-sf.cif and downloaded from RCSB if missing.
+For each dataset ID the folder --dir (default ProteinTimeSeries/) must hold a model (<ID>.cif/.pdb) and structure
+factors (<ID>-sf.cif or <ID>.mtz). Files for real PDB IDs are downloaded from RCSB if missing.
+Your own data: see docs/CUSTOM_DATA.md.
 """
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -21,8 +24,13 @@ from fetch_and_convert import ROOT, find_pymol  # noqa: E402
 ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 ap.add_argument("--dir", default="ProteinTimeSeries")
 ap.add_argument("--ids", default=",".join(SERIES_278K), help="PDB IDs in series order")
-ap.add_argument("--title", default="Human cyclophilin A, 278 K: data sets 1 to 9")
-ap.add_argument("--focus", default=CYPA_ACTIVE_SITE, help="residue numbers for the zoom panel, or 'auto'")
+ap.add_argument("--title", default=None, help="video title (default: generic, or CypA text for the built-in series)")
+ap.add_argument("--labels", help="comma-separated label per dataset, e.g. \"0 min,5 min,10 min\" (default: Data set k)")
+ap.add_argument("--subtitle", default=None, help="line under the title")
+ap.add_argument("--zoom-label", default=None, help="caption of the zoom panel (default: 'Focus residues')")
+ap.add_argument("--focus", default=None,
+                help="residue numbers for the zoom panel, e.g. 55,60,113, or 'auto' (strongest difference peaks; default for your own data)")
+ap.add_argument("--no-download", action="store_true", help="never download missing files from RCSB")
 ap.add_argument("--dmin", type=float, default=1.8)
 ap.add_argument("--diff-dmin", type=float, default=2.0)
 ap.add_argument("--diff-nsigma", type=float, default=3.0)
@@ -40,8 +48,16 @@ a = ap.parse_args()
 
 out = Path(a.out).resolve()
 data_dir = Path(a.dir).resolve()
-ids = [s.strip().upper() for s in a.ids.split(",")]
-prepare(data_dir, ids, out, a.dmin, a.diff_dmin, a.focus, a.diff_nsigma)
+norm = lambda x: x.strip().upper() if re.fullmatch(r"[0-9][A-Za-z0-9]{3}", x.strip()) else x.strip()
+ids = [norm(x) for x in a.ids.split(",")]
+labels = [x.strip() for x in a.labels.split(",")] if a.labels else None
+builtin = ids in (SERIES_278K,)
+focus = a.focus or (CYPA_ACTIVE_SITE if builtin else "auto")
+title = a.title or ("Human cyclophilin A, 278 K: data sets 1 to 9" if builtin else f"Electron density change across {len(ids)} datasets")
+subtitle = a.subtitle or ("Refined models barely differ; the structure factors change across the series" if builtin
+                          else "Density from each dataset's structure factors; difference density vs the first dataset")
+zoom_label = a.zoom_label or ("Active site" if builtin else "Focus residues")
+prepare(data_dir, ids, out, a.dmin, a.diff_dmin, focus, a.diff_nsigma, not a.no_download, labels)
 if a.prepare_only:
     raise SystemExit(0)
 
@@ -59,7 +75,8 @@ subprocess.run([pymol, "-cq", str(Path(__file__).with_name("pymol_density.py")),
 
 if not a.no_video:
     env = dict(os.environ, DENSITY_DIR=str(out), DENSITY_SET_SECONDS=str(a.set_seconds),
-               DENSITY_FRAMES_PER_SET=str(a.frames_per_set), DENSITY_TITLE=a.title)
+               DENSITY_FRAMES_PER_SET=str(a.frames_per_set), DENSITY_TITLE=title,
+               DENSITY_SUBTITLE=subtitle, DENSITY_ZOOM_LABEL=zoom_label)
     cmd = [sys.executable, "-m", "manim", *a.manim_args.split(), "--media_dir", str(out / "media"),
            str(ROOT / "scenes" / "density_scene.py"), "DensityScene"]
     print("Composing video with Manim...")

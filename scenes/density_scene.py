@@ -15,7 +15,9 @@ from PIL import Image
 DENSITY_DIR = Path(os.environ.get("DENSITY_DIR") or Path(__file__).resolve().parent.parent / "assets" / "density")
 SET_SECONDS = float(os.environ.get("DENSITY_SET_SECONDS", 2.5))   # seconds per dataset
 FRAMES_PER_SET = int(os.environ.get("DENSITY_FRAMES_PER_SET", 10))
-TITLE = os.environ.get("DENSITY_TITLE", "Human cyclophilin A, 278 K: data sets 1 to 9")
+TITLE = os.environ.get("DENSITY_TITLE", "Electron density change across the series")
+SUBTITLE = os.environ.get("DENSITY_SUBTITLE", "Density from each dataset's structure factors; difference density vs the first dataset")
+ZOOM_LABEL = os.environ.get("DENSITY_ZOOM_LABEL", "Focus residues")
 
 
 def load(panel, n):
@@ -38,13 +40,12 @@ class DensityScene(Scene):
 
         # ---- layout ----
         title = Text(TITLE, font_size=32).to_corner(UL)
-        sub = Text("Refined models barely differ; the structure factors change across the series",
-                   font_size=18, color=GREY_A).next_to(title, DOWN, buff=0.12).align_to(title, LEFT)
+        sub = Text(SUBTITLE, font_size=18, color=GREY_A).next_to(title, DOWN, buff=0.12).align_to(title, LEFT)
         side = 4.2
         left_img = keep_live(ImageMobject(load("overview", 1)).set(height=side).move_to([-3.6, -0.05, 0]))
         right_img = keep_live(ImageMobject(load("zoom", 1)).set(height=side).move_to([3.6, -0.05, 0]))
         cap_l = Text("Whole molecule: difference density Fo(n) − Fo(1)", font_size=17, color=GREY_A).next_to(left_img, UP, buff=0.08)
-        cap_r = Text("Active site: 2Fo−Fc and difference density", font_size=17, color=GREY_A).next_to(right_img, UP, buff=0.08)
+        cap_r = Text(f"{ZOOM_LABEL}: 2Fo−Fc and difference density", font_size=17, color=GREY_A).next_to(right_img, UP, buff=0.08)
 
         # legend
         def swatch(color, text):
@@ -73,7 +74,8 @@ class DensityScene(Scene):
         # per-set readouts (pre-created, toggled by opacity)
         reads = []
         for s in sets:
-            txt = f"Data set {s['set']}  ·  {s['id']}" + ("  (reference)" if s["set"] == 1 else f"  ·  R_iso {100 * s['r_iso']:.1f} %")
+            name = s.get("label") or f"Data set {s['set']}"
+            txt = f"{name}  ·  {s['id']}" + ("  (reference)" if s["set"] == 1 else f"  ·  R_iso {100 * s['r_iso']:.1f} %")
             reads.append(keep_live(Text(txt, font_size=24, color=YELLOW).to_corner(UR).set_opacity(0)))
 
         state = {"t": 0.0, "set": -1, "pos": -1.0}
