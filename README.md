@@ -10,7 +10,7 @@ Make animated protein videos from PDB data with [Manim](https://www.manim.commun
 
 **Quick start**
 ```bash
-git clone https://github.com/akshay-edathodathil/protein_manim_project.git && cd protein_manim_project
+git clone https://github.com/akshay-edathodathil/protein-animator.git && cd protein-animator
 # macOS: brew install ffmpeg cairo pango pkg-config     (Ubuntu: see §1a)
 ./setup.sh                 # venv + Python packages   (enough for the OpenGL scene)
 ./render.sh gl             # first video in ~25 s  -> media/videos/...
@@ -41,8 +41,8 @@ Python 3.10 or newer is required. `sox` is *not* needed (audio only).
 ### 1b. Project setup
 
 ```bash
-git clone https://github.com/akshay-edathodathil/protein_manim_project.git
-cd protein_manim_project
+git clone https://github.com/akshay-edathodathil/protein-animator.git
+cd protein-animator
 ./setup.sh
 ```
 `setup.sh` checks your system packages, creates `.venv`, and installs `requirements.txt`. That is all you need for the OpenGL scene.
