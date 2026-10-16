@@ -103,7 +103,53 @@ Videos are written to `media/videos/...` (ignored by git). Add `-p` to open the 
 
 ---
 
-## 3. Computation times
+## 3. Show how a protein changes over time (multiple PDB files)
+
+Give the pipeline several structures in time order (separate PDB/mmCIF files, a folder, or a multi-model file such as an NMR ensemble or MD snapshots). It produces a video with a (nearly) fixed camera where you watch the structure move.
+
+```bash
+./setup.sh --with-pymol                       # PyMOL is required
+./render.sh traj-demo                         # example: adenylate kinase, open (4AKE) -> closed (1AKE)
+
+# your own data (files are used in natural filename order: t2.pdb before t10.pdb)
+./render.sh traj snapshots/*.pdb --labels "0 ns,10 ns,20 ns" --title "My protein"
+./render.sh traj my_folder/ --chains A
+./render.sh traj ensemble.pdb                 # every MODEL in the file is one frame
+```
+The video path is printed at the end (`assets/trajectory/media/videos/trajectory_scene/...`).
+
+**What it does**
+1. Keeps only atoms present in *all* structures (matched by chain, residue number, residue name, atom name; waters, hydrogens and ligands are dropped).
+2. Superimposes every structure on the first (CA atoms), so only real conformational change is visible.
+3. Inserts `--between N` interpolated frames between consecutive structures (default 24) so the motion is smooth. Use `--between 0` if your files are already closely spaced MD snapshots.
+4. PyMOL ray-traces every frame as a cartoon from the same viewpoint (plus a slow `--rotate` 20° drift so it feels like video; `--rotate 0` locks the view). Residues are colored blue → white → red by **how far they have moved from the first structure**.
+5. Manim adds the title, current structure label, a timeline with a tick for each real structure, a live CA-RMSD readout and a color legend. The video pauses (`--hold`, default 1.2 s) on each real structure.
+
+**Common options** (`python scripts/render_traj.py --help` for all)
+
+| Option | Meaning |
+|---|---|
+| `--labels "a,b,c"` | one label per structure (default: file names) |
+| `--chains A,B` | keep only these chains (needed if chain IDs differ between files) |
+| `--between N` | interpolated frames between structures |
+| `--color-by displacement\|chain\|none` | coloring |
+| `--disp-max Å` | displacement that maps to full red (default: 99th percentile) |
+| `--ss first\|each` | secondary structure assigned once (stable) or recomputed every frame |
+| `--width/--height/--antialias` | PyMOL render quality (default 1280×720, antialias 2) |
+| `--play-fps`, `--hold` | playback speed through interpolated frames / pause on real structures |
+| `--prepare-only`, `--no-video` | stop after alignment, or after the frames |
+
+**Requirements and limitations**
+- The structures must be the *same protein* with matching residue numbering and chain IDs (different constructs work, but only residues common to all are shown).
+- Interpolation is straight-line in Cartesian coordinates, so for large domain motions the in-between frames are an approximation (bonds can briefly look compressed). It is a visual guide, not a simulation. With real MD/NMR snapshots, use `--between 0` or a small value.
+- Chain IDs must be one character (PDB format).
+- Resume: frames already rendered are skipped if you re-run with the same `--out`.
+
+**Computation times** (this Mac, 10 cores): adenylate kinase (214 residues), 2 structures, 30 interpolated frames, 1280×720, antialias 2 → **~1 min total** (~0.4 s/frame ray tracing). NMR ensemble (76 residues), 10 models, 55 frames at 960×540, antialias 1 → ~37 s. Time scales with number of frames × protein size (a huge complex like 6QL9 as *cartoon* would be far slower per frame; not measured).
+
+---
+
+## 4. Computation times (6QL9 videos)
 
 Measured on an Apple Silicon Mac, 10 CPU cores. Your numbers will differ; ray tracing scales with core count.
 
@@ -124,7 +170,7 @@ Not measured: OpenGL/Cairo at 1080p/4K, and Cairo with the current 15,000-face s
 
 ---
 
-## 4. Troubleshooting
+## 5. Troubleshooting
 
 | Problem | Fix |
 |---|---|
@@ -137,7 +183,7 @@ Not measured: OpenGL/Cairo at 1080p/4K, and Cairo with the current 15,000-face s
 
 ---
 
-## 5. More
+## 6. More
 
 - **How the code works:** [`docs/CODE_GUIDE.md`](docs/CODE_GUIDE.md)
 - Project layout:
@@ -148,8 +194,13 @@ assets/pymol_frames*/          ray-traced turntable frames (ignored by git)
 scenes/protein_scene_gl.py     A. OpenGL scene
 scenes/protein_scene_hybrid.py B. PyMOL frames + Manim overlay
 scenes/protein_scene.py        C. Cairo scene
+scenes/trajectory_scene.py     structure-change video (overlay for the PyMOL frames)
 scripts/fetch_and_convert.py   download CIF -> surface mesh (PyMOL / ChimeraX / built-in)
 scripts/render_pymol_frames.py launcher for the PyMOL turntable
 scripts/pymol_turntable.py     runs inside PyMOL
+scripts/render_traj.py         several PDBs -> change-over-time video (orchestrates the two below)
+scripts/traj_prepare.py        align + interpolate structures
+scripts/pymol_traj.py          runs inside PyMOL: fixed-camera frames colored by displacement
+examples/adenylate_kinase/     4AKE (open) and 1AKE (closed) demo inputs
 setup.sh, render.sh            setup and render helpers
 ```

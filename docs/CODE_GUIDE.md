@@ -64,3 +64,17 @@ The default Manim renderer has **no depth buffer**: it paints triangles back-to-
 
 - `setup.sh` — verifies Python ≥ 3.10 and system packages, creates `.venv`, installs `requirements.txt`; `--with-pymol` also creates the conda env.
 - `render.sh` — one entry point for `mesh | gl | cairo | frames-fast | frames-hq | hybrid`; extra args pass through to `manim`.
+
+## D. Structure change over time (`render_traj.py` pipeline)
+
+```
+PDB files / models ──► traj_prepare.py ──► morph.pdb + disp.f32 + meta.json ──► pymol_traj.py ──► frames/*.png ──► trajectory_scene.py ──► video
+```
+
+- **`scripts/traj_prepare.py`** (runs in `.venv`, uses gemmi + numpy)
+  - `collect_inputs()` expands files/directories in natural order; `read_keyframes()` makes one keyframe per file *or per MODEL*, keyed by `(chain, resnum, icode, resname, atom name)`.
+  - `prepare()` keeps atoms common to all keyframes, superimposes each on the first (`kabsch()` on CA atoms), then builds `--between` interpolated frames per segment with smoothstep easing. It also computes per-atom displacement from keyframe 0 and per-frame CA RMSD.
+  - `write_outputs()` writes `morph.pdb` (one MODEL per frame, identical atom order), `disp.f32` (raw float32, frames × atoms — read in PyMOL without numpy), and `meta.json` (labels, keyframe flags, RMSD, `disp_max`).
+- **`scripts/pymol_traj.py`** (runs inside PyMOL): loads `morph.pdb` as multi-state, assigns secondary structure, frames the camera on **all states at once** (`orient/zoom state=0`) so the protein never leaves the view, then per frame: `set state`, write that frame's displacements into the B-factor column (`alter ... b=next(it)`; B is per-atom, not per-state, so it must be reset each frame), `spectrum b, blue_white_red`, `png(..., ray=1)`, and a small `turn y` for the slow rotation.
+- **`scenes/trajectory_scene.py`**: a playback schedule gives each real structure `HOLD` seconds and each interpolated frame `1/PLAY_FPS`; an updater picks the current PNG and updates the label, RMSD text and timeline marker. **Gotcha:** Manim's Cairo renderer caches mobjects without updaters as a static background image, so anything that changes during playback (image, marker, labels) must carry an updater; labels and RMSD texts are pre-created and toggled by opacity instead of added/removed.
+- **`scripts/render_traj.py`** runs the three stages in order and prints the video path.

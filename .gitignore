@@ -13,3 +13,6 @@ assets/*.cif
 
 # Ray-traced turntable frames (regenerate with ./render.sh frames-fast)
 assets/pymol_frames*/
+
+# Output of ./render.sh traj
+assets/trajectory/

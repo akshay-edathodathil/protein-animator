@@ -6,6 +6,8 @@
 #   ./render.sh frames-fast     # PyMOL ray-traced turntable, 60 frames, fast settings
 #   ./render.sh frames-hq       # PyMOL ray-traced turntable, 60 frames, high quality (slow)
 #   ./render.sh hybrid [flags]  # PyMOL frames + Manim titles           (default 720p30)
+#   ./render.sh traj <pdb files...> [options]   # structure CHANGE over time from several PDBs (see README)
+#   ./render.sh traj-demo       # adenylate kinase open -> closed example
 set -euo pipefail
 cd "$(dirname "$0")"
 [[ -x .venv/bin/python ]] || { echo "Run ./setup.sh first."; exit 1; }
@@ -27,5 +29,8 @@ case "$mode" in
     echo "Using frames from $FRAME_DIR"
     [[ -n "$(ls "$FRAME_DIR" 2>/dev/null)" ]] || { echo "No frames. Run ./render.sh frames-fast first."; exit 1; }
     FRAME_DIR="$FRAME_DIR" manim "${@:-${default_flags[@]}}" scenes/protein_scene_hybrid.py ProteinHybridScene ;;
-  *) sed -n '2,10p' "$0"; exit 1 ;;
+  traj)        python scripts/render_traj.py "$@" ;;
+  traj-demo)   python scripts/render_traj.py examples/adenylate_kinase/4AKE.pdb examples/adenylate_kinase/1AKE.pdb \
+                 --labels "Open (4AKE),Closed (1AKE)" --chains A --title "Adenylate kinase: lid closing" "$@" ;;
+  *) sed -n '2,12p' "$0"; exit 1 ;;
 esac
