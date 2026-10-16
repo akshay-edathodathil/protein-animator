@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # One-shot setup: venv + Python deps (+ optional PyMOL via conda).
 #   ./setup.sh              # core install (enough for the OpenGL / Cairo scenes)
-#   ./setup.sh --with-pymol # also create a conda env "pymol" (needed for the hybrid scene)
+#   ./setup.sh --with-pymol # also create a conda env "pymol" (needed for everything except the OpenGL scene);
+#                           set PYMOL_ENV=name to use another env name
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -29,7 +30,12 @@ if ! command -v ffmpeg >/dev/null; then echo "ffmpeg is required. Install it and
 if [[ "${1:-}" == "--with-pymol" ]]; then
   if command -v mamba >/dev/null; then C=mamba; elif command -v conda >/dev/null; then C=conda; else
     echo "conda/mamba not found. Install Miniforge (https://github.com/conda-forge/miniforge) then re-run with --with-pymol."; exit 1; fi
-  "$C" create -y -n pymol -c conda-forge pymol-open-source
+  ENV="${PYMOL_ENV:-pymol}"
+  if "$C" env list | awk '{print $1}' | grep -qx "$ENV"; then
+    echo "conda env '$ENV' already exists; skipping."
+  else
+    "$C" create -y -n "$ENV" -c conda-forge pymol-open-source
+  fi
 fi
 
 .venv/bin/python -c "import manim, trimesh, gemmi; print('Python deps OK, manim', manim.__version__)"

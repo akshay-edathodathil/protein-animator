@@ -1,5 +1,5 @@
 # Direct dependencies. Exact versions that were tested are in requirements-lock.txt (macOS, Python 3.12).
-manim>=0.19,<1
+manim>=0.22,<0.23         # tested with 0.22; the OpenGL scene uses Manim internals
 trimesh>=4
 numpy>=1.26
 scipy>=1.11

@@ -1,18 +1,26 @@
-# 6QL9 Fatty Acid Synthase — 3D protein animation with Manim
+# Protein visualization with Manim + PyMOL
 
-Animated 3D views of PDB **6QL9** (yeast fatty acid synthase, hetero 12-mer α6β6), each of the 12 chains in its own color, with titles and captions. Two ways to render it:
+Make animated protein videos from PDB data with [Manim](https://www.manim.community/) (titles, overlays, camera, compositing) and [PyMOL](https://pymol.org/) (publication-quality ray tracing). Three things you can make:
 
-| | **A. OpenGL scene** | **B. Hybrid scene (PyMOL + Manim)** |
-|---|---|---|
-| How | Manim draws a 200k-face surface mesh itself on the GPU | PyMOL ray-traces a turntable of PNG frames; Manim adds titles/captions on top |
-| Look | Flat shading, slightly noisy surface | Smooth, shadowed, publication-style (close to the RCSB image) |
-| Camera | Free 3D camera (rotate, zoom, anything) | Fixed turntable (frames are pre-rendered images) |
-| Needs PyMOL | No (mesh is included in the repo) | **Yes** |
-| Time | seconds | minutes to ~half an hour (ray tracing) |
+| I want to show... | Command | Needs PyMOL | Details |
+|---|---|---|---|
+| A single large structure (6QL9 fatty acid synthase) rotating, 12 chains in different colors | `./render.sh gl` (OpenGL) or the PyMOL hybrid | OpenGL: no / hybrid: yes | [§2](#2-render-the-6ql9-structure) |
+| A protein **changing shape** over a series of PDB files (MD snapshots, NMR models, conformers) | `./render.sh traj <files>` | yes | [§3](#3-show-how-a-protein-changes-over-time-multiple-pdb-files) |
+| How the **diffraction data / electron density** change across a series of crystal datasets whose models barely differ | `./render.sh density` | yes | [§4](#4-show-how-the-data-change-across-a-series-structure-factors---electron-density) |
 
-There is also an older **Cairo scene** (`scenes/protein_scene.py`), kept because it matches the original spec (`ThreeDScene`, default renderer). It draws a decimated mesh and looks noisier than A.
+**Quick start**
+```bash
+git clone <repo-url> protein_manim_project && cd protein_manim_project
+# macOS: brew install ffmpeg cairo pango pkg-config     (Ubuntu: see §1a)
+./setup.sh                 # venv + Python packages   (enough for the OpenGL scene)
+./render.sh gl             # first video in ~25 s  -> media/videos/...
+./setup.sh --with-pymol    # adds PyMOL (needs conda/Miniforge) for the other pipelines
+./render.sh traj-demo      # protein conformational change demo (~1 min)
+./render.sh density        # electron-density series demo (~5 min; downloads ~15 MB from RCSB)
+```
+**Use your own data:** [`docs/CUSTOM_DATA.md`](docs/CUSTOM_DATA.md) · **How the code works:** [`docs/CODE_GUIDE.md`](docs/CODE_GUIDE.md)
 
-> Tested on macOS (Apple Silicon), Python 3.12, Manim 0.22. Linux should work with the packages listed below. Windows is untested.
+> Tested on macOS (Apple Silicon), Python 3.12, Manim 0.22. Linux should work with the packages listed below (not tested). Windows is untested; `setup.sh`/`render.sh` are bash scripts.
 
 ---
 
@@ -61,7 +69,9 @@ The scripts find PyMOL automatically (`$PYMOL`, `pymol` on PATH, or a conda env 
 
 ---
 
-## 2. Render
+## 2. Render the 6QL9 structure
+
+Two ways to render it: **A. OpenGL scene** (Manim draws a 200k-face surface mesh itself on the GPU; seconds, free 3D camera, flatter look) and **B. Hybrid scene** (PyMOL ray-traces a turntable, Manim adds titles; smooth shadowed look close to the RCSB image, but a fixed turntable and minutes of ray tracing). There is also an older **C. Cairo scene** that follows the original spec (`ThreeDScene`) but looks noisier. Needs PyMOL: B only.
 
 Use the helper `./render.sh <mode>` (extra arguments go to `manim`), or run the commands shown underneath.
 
@@ -113,9 +123,9 @@ Give the pipeline several structures in time order (separate PDB/mmCIF files, a 
 ./setup.sh --with-pymol                       # PyMOL is required
 ./render.sh traj-demo                         # example: adenylate kinase, open (4AKE) -> closed (1AKE)
 
-# your own data (files are used in natural filename order: t2.pdb before t10.pdb)
-./render.sh traj snapshots/*.pdb --labels "0 ns,10 ns,20 ns" --title "My protein"
-./render.sh traj my_folder/ --chains A
+# your own data: pass a folder (sorted naturally: t2.pdb before t10.pdb) or list files in time order
+./render.sh traj my_folder/ --labels "0 ns,10 ns,20 ns" --title "My protein" --chains A
+./render.sh traj run/t0.pdb run/t1.pdb run/t2.pdb
 ./render.sh traj ensemble.pdb                 # every MODEL in the file is one frame
 ```
 The video path is printed at the end (`assets/trajectory/media/videos/trajectory_scene/...`).
@@ -155,18 +165,19 @@ The video path is printed at the end (`assets/trajectory/media/videos/trajectory
 
 > **Using your own data?** Accepted file formats/columns, naming, options and checks: [`docs/CUSTOM_DATA.md`](docs/CUSTOM_DATA.md).
 
-Use this when the refined PDB models of a series barely differ but the diffraction data do (e.g. successive datasets on one crystal, temperature series). Each dataset needs a model (`<ID>.cif`) **and** its structure-factor file (`<ID>-sf.cif`), both from RCSB.
+Use this when the refined PDB models of a series barely differ but the diffraction data do (e.g. successive datasets on one crystal, temperature series). Each dataset needs a refined model (`.cif`/`.pdb`) **and** its structure factors (`-sf.cif` or `.mtz`); for real PDB IDs both are downloaded from RCSB automatically.
 
 ```bash
 ./setup.sh --with-pymol
 ./render.sh density                           # CypA at 278 K, data sets 1-9 (5KUZ, 5KV0 ... 5KV7)
-./render.sh density --ids 5KUL,5KUN,5KUO,5KUQ,5KUR,5KUS,5KUU,5KUV,5KUW --title "CypA, 100 K"   # the 100 K series
-./render.sh density --ids ID1,ID2,ID3 --focus 12,45,67 --title "My series"                     # your own entries
+./render.sh density --ids 5KUL,5KUN,5KUO,5KUQ,5KUR,5KUS,5KUU,5KUV,5KUW --out assets/density_100k \
+    --focus 55,60,61,63,72,101,102,103,111,113,121,122,126 --title "Human cyclophilin A, 100 K: data sets 1 to 9" --zoom-label "Active site"   # the 100 K series
+./render.sh density --dir my_series --ids t00,t10,t20 --labels "0 min,10 min,20 min" --title "My series"   # your own files (see docs/CUSTOM_DATA.md)
 ```
 Files are read from `ProteinTimeSeries/` (model `<ID>.cif`/`.pdb` + structure factors `<ID>-sf.cif`/`<ID>.mtz`) and downloaded from RCSB when missing (real PDB IDs only). The video path is printed at the end (`assets/density/media/...`).
 
 **What it does** (`scripts/density_prepare.py`)
-1. Reads intensities, F_calc and phases from each `-sf.cif`; Fo = sqrt(max(I, 0)), scaled onto |Fc| with a resolution-dependent factor.
+1. Reads intensities (or amplitudes), F_calc and phases from each structure-factor file (`-sf.cif` or `.mtz`); Fo = sqrt(max(I, 0)), scaled onto |Fc| with a resolution-dependent factor.
 2. **2Fo−Fc map** per dataset (phases from the deposited model).
 3. **Difference map Fo(n) − Fo(1)** with set 1's phases (isomorphous difference density), plus **R_iso** per dataset: the overall size of the change.
 4. PyMOL ray-traces two panels per frame: the whole molecule with the difference density (green = gain, red = loss) and a zoom on the active-site residues with 2Fo−Fc (blue) plus difference density. The **same absolute contour** is used for every frame (±3 σ of the *last* difference map), so growth of the change is visible rather than normalised away.
@@ -174,7 +185,7 @@ Files are read from `ProteinTimeSeries/` (model `<ID>.cif`/`.pdb` + structure fa
 
 **Notes and limitations**
 - The deposited structure-factor files contain intensities + F_calc/phase, not ready-made map coefficients, so the maps here are *not* sigma-A weighted (no refinement program is run). They are good for visualising change; use Phenix/Refmac maps for publication-quality density.
-- The default zoom region (`--focus`) is the CypA active site; use `--focus auto` to pick the residues with the strongest difference peaks, or give your own residue numbers.
+- The zoom region (`--focus`) defaults to the CypA active site for the built-in 278 K series and to `auto` (residues with the strongest difference peaks) for your own data; or give residue numbers.
 - Difference maps are in each entry's own crystal frame; cell edges drift by <0.3 Å across the CypA series, which is negligible for this visualisation.
 - For 5KUZ-5KV7 the difference density is real but diffuse (peaks up to ~5 σ spread over many residues; R_iso rises 3% -> 11%), not a single dramatic site. The video shows exactly that.
 
@@ -213,6 +224,9 @@ Not measured: OpenGL/Cairo at 1080p/4K, and Cairo with the current 15,000-face s
 | `No frames in assets/pymol_frames` (hybrid) | Run `./render.sh frames-fast` first |
 | OpenGL window/context errors on a headless Linux box | Use a machine with a display/GPU, or fall back to the Cairo scene |
 | Hybrid spin looks too fast/slow | `REV_SECONDS` in `scenes/protein_scene_hybrid.py` |
+| `conda: command not found` during `./setup.sh --with-pymol` | Install [Miniforge](https://github.com/conda-forge/miniforge) first |
+| Errors about missing files / columns / residue numbering in the trajectory or density pipelines | See the troubleshooting table in [`docs/CUSTOM_DATA.md`](docs/CUSTOM_DATA.md) |
+| Several pipelines in one checkout | Each writes to its own folder under `assets/` (`pymol_frames*`, `trajectory`, `density`); use `--out` to keep separate runs apart |
 
 ---
 
@@ -222,23 +236,26 @@ Not measured: OpenGL/Cairo at 1080p/4K, and Cairo with the current 15,000-face s
 - **How the code works:** [`docs/CODE_GUIDE.md`](docs/CODE_GUIDE.md)
 - Project layout:
 ```
-assets/6QL9_surface.obj        200k-face colored surface mesh (committed)
-assets/6QL9.cif                downloaded on demand (ignored by git)
-assets/pymol_frames*/          ray-traced turntable frames (ignored by git)
-scenes/protein_scene_gl.py     A. OpenGL scene
-scenes/protein_scene_hybrid.py B. PyMOL frames + Manim overlay
-scenes/protein_scene.py        C. Cairo scene
-scenes/trajectory_scene.py     structure-change video (overlay for the PyMOL frames)
-scripts/fetch_and_convert.py   download CIF -> surface mesh (PyMOL / ChimeraX / built-in)
-scripts/render_pymol_frames.py launcher for the PyMOL turntable
-scripts/pymol_turntable.py     runs inside PyMOL
-scripts/render_traj.py         several PDBs -> change-over-time video (orchestrates the two below)
-scripts/traj_prepare.py        align + interpolate structures
-scripts/pymol_traj.py          runs inside PyMOL: fixed-camera frames colored by displacement
-scripts/render_density.py      X-ray datasets (model + structure factors) -> density-change video (orchestrator)
-scripts/density_prepare.py     structure factors -> 2Fo-Fc / difference maps, R_iso
-scripts/pymol_density.py       runs inside PyMOL: density-mesh panels
-scenes/density_scene.py        Manim overlay for the density video
+setup.sh, render.sh            setup and render helpers (entry points)
+requirements.txt               Python dependencies (requirements-lock.txt = exact versions tested on macOS)
+scenes/                        Manim scenes
+  protein_scene_gl.py            A. OpenGL scene (6QL9)
+  protein_scene_hybrid.py        B. PyMOL turntable frames + Manim overlay (6QL9)
+  protein_scene.py               C. Cairo scene (6QL9)
+  trajectory_scene.py            overlay for the conformational-change video
+  density_scene.py               overlay for the electron-density video
+scripts/                       command-line tools
+  fetch_and_convert.py           download CIF -> surface mesh (PyMOL / ChimeraX / built-in); also locates PyMOL
+  render_pymol_frames.py, pymol_turntable.py   6QL9 turntable frames (launcher / runs inside PyMOL)
+  render_traj.py, traj_prepare.py, pymol_traj.py   conformational change pipeline
+  render_density.py, density_prepare.py, pymol_density.py   electron-density pipeline
+  frame_cache.py                 invalidates cached frames when render settings change
+assets/6QL9_surface.obj        200k-face colored surface mesh (committed; regenerate with ./render.sh mesh)
 examples/adenylate_kinase/     4AKE (open) and 1AKE (closed) demo inputs
-setup.sh, render.sh            setup and render helpers
+docs/                          CODE_GUIDE.md, CUSTOM_DATA.md
 ```
+Generated and not committed (git-ignored): `.venv/`, `media/`, `assets/*.cif`, `assets/pymol_frames*/`, `assets/trajectory*/`, `assets/density*/`, `ProteinTimeSeries/` (downloaded structure data), logs.
+
+## 8. Data sources
+
+Structure data come from the [RCSB Protein Data Bank](https://www.rcsb.org) (6QL9, 4AKE, 1AKE and the cyclophilin A series 5KUL-5KV7), which distributes its archive under CC0. Please cite the original publications of the entries you visualise (listed on each entry's RCSB page).

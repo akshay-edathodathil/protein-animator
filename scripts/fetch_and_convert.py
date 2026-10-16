@@ -63,9 +63,10 @@ def read_atoms(cif: Path):
 
 def find_pymol():
     cands = [os.environ.get("PYMOL"), shutil.which("pymol")]
+    env = os.environ.get("PYMOL_ENV", "pymol")   # name of the conda env created by setup.sh --with-pymol
     for base in ("miniforge3", "mambaforge", "miniconda3", "anaconda3", "micromamba", ".conda"):
-        cands.append(str(Path.home() / base / "envs/pymol/bin/pymol"))
-    cands.append(str(Path.home() / "micromamba/envs/pymol/bin/pymol"))
+        cands.append(str(Path.home() / base / "envs" / env / "bin/pymol"))
+    cands.append(str(Path.home() / "micromamba/envs" / env / "bin/pymol"))
     for cand in cands:
         if cand and Path(cand).exists():
             return cand
