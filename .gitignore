@@ -16,3 +16,7 @@ assets/pymol_frames*/
 
 # Output of ./render.sh traj
 assets/trajectory/
+
+# Output of ./render.sh density, and its downloaded RCSB data
+assets/density/
+ProteinTimeSeries/

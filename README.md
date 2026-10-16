@@ -149,7 +149,36 @@ The video path is printed at the end (`assets/trajectory/media/videos/trajectory
 
 ---
 
-## 4. Computation times (6QL9 videos)
+## 4. Show how the *data* change across a series (structure factors -> electron density)
+
+Use this when the refined PDB models of a series barely differ but the diffraction data do (e.g. successive datasets on one crystal, temperature series). Each dataset needs a model (`<ID>.cif`) **and** its structure-factor file (`<ID>-sf.cif`), both from RCSB.
+
+```bash
+./setup.sh --with-pymol
+./render.sh density                           # CypA at 278 K, data sets 1-9 (5KUZ, 5KV0 ... 5KV7)
+./render.sh density --ids 5KUL,5KUN,5KUO,5KUQ,5KUR,5KUS,5KUU,5KUV,5KUW --title "CypA, 100 K"   # the 100 K series
+./render.sh density --ids ID1,ID2,ID3 --focus 12,45,67 --title "My series"                     # your own entries
+```
+Files are read from `ProteinTimeSeries/` (`<ID>.cif`, `<ID>-sf.cif`) and downloaded from RCSB when missing. The video path is printed at the end (`assets/density/media/...`).
+
+**What it does** (`scripts/density_prepare.py`)
+1. Reads intensities, F_calc and phases from each `-sf.cif`; Fo = sqrt(max(I, 0)), scaled onto |Fc| with a resolution-dependent factor.
+2. **2Fo−Fc map** per dataset (phases from the deposited model).
+3. **Difference map Fo(n) − Fo(1)** with set 1's phases (isomorphous difference density), plus **R_iso** per dataset: the overall size of the change.
+4. PyMOL ray-traces two panels per frame: the whole molecule with the difference density (green = gain, red = loss) and a zoom on the active-site residues with 2Fo−Fc (blue) plus difference density. The **same absolute contour** is used for every frame (±3 σ of the *last* difference map), so growth of the change is visible rather than normalised away.
+5. Manim composites the panels with a title, the current dataset, and a bar chart of R_iso across the series.
+
+**Notes and limitations**
+- The deposited structure-factor files contain intensities + F_calc/phase, not ready-made map coefficients, so the maps here are *not* sigma-A weighted (no refinement program is run). They are good for visualising change; use Phenix/Refmac maps for publication-quality density.
+- The default zoom region (`--focus`) is the CypA active site; use `--focus auto` to pick the residues with the strongest difference peaks, or give your own residue numbers.
+- Difference maps are in each entry's own crystal frame; cell edges drift by <0.3 Å across the CypA series, which is negligible for this visualisation.
+- For 5KUZ-5KV7 the difference density is real but diffuse (peaks up to ~5 σ spread over many residues; R_iso rises 3% -> 11%), not a single dramatic site. The video shows exactly that.
+
+**Computation times** (this Mac, 10 cores, CypA 278 K, 9 datasets): density maps + R_iso ~1 s (plus ~5 s the first time, to download the missing entries); PyMOL ray tracing of 144 panel images (8 frames per dataset x 2 panels, 800 px, antialias 2) **~2.7 min**; Manim compositing at 1080p30 (24.7 s video) **~1 min**. Total ~4 min.
+
+---
+
+## 5. Computation times (6QL9 videos)
 
 Measured on an Apple Silicon Mac, 10 CPU cores. Your numbers will differ; ray tracing scales with core count.
 
@@ -170,7 +199,7 @@ Not measured: OpenGL/Cairo at 1080p/4K, and Cairo with the current 15,000-face s
 
 ---
 
-## 5. Troubleshooting
+## 6. Troubleshooting
 
 | Problem | Fix |
 |---|---|
@@ -183,7 +212,7 @@ Not measured: OpenGL/Cairo at 1080p/4K, and Cairo with the current 15,000-face s
 
 ---
 
-## 6. More
+## 7. More
 
 - **How the code works:** [`docs/CODE_GUIDE.md`](docs/CODE_GUIDE.md)
 - Project layout:
@@ -201,6 +230,10 @@ scripts/pymol_turntable.py     runs inside PyMOL
 scripts/render_traj.py         several PDBs -> change-over-time video (orchestrates the two below)
 scripts/traj_prepare.py        align + interpolate structures
 scripts/pymol_traj.py          runs inside PyMOL: fixed-camera frames colored by displacement
+scripts/render_density.py      X-ray datasets (model + structure factors) -> density-change video (orchestrator)
+scripts/density_prepare.py     structure factors -> 2Fo-Fc / difference maps, R_iso
+scripts/pymol_density.py       runs inside PyMOL: density-mesh panels
+scenes/density_scene.py        Manim overlay for the density video
 examples/adenylate_kinase/     4AKE (open) and 1AKE (closed) demo inputs
 setup.sh, render.sh            setup and render helpers
 ```

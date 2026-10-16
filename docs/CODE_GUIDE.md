@@ -78,3 +78,18 @@ PDB files / models ──► traj_prepare.py ──► morph.pdb + disp.f32 + me
 - **`scripts/pymol_traj.py`** (runs inside PyMOL): loads `morph.pdb` as multi-state, assigns secondary structure, frames the camera on **all states at once** (`orient/zoom state=0`) so the protein never leaves the view, then per frame: `set state`, write that frame's displacements into the B-factor column (`alter ... b=next(it)`; B is per-atom, not per-state, so it must be reset each frame), `spectrum b, blue_white_red`, `png(..., ray=1)`, and a small `turn y` for the slow rotation.
 - **`scenes/trajectory_scene.py`**: a playback schedule gives each real structure `HOLD` seconds and each interpolated frame `1/PLAY_FPS`; an updater picks the current PNG and updates the label, RMSD text and timeline marker. **Gotcha:** Manim's Cairo renderer caches mobjects without updaters as a static background image, so anything that changes during playback (image, marker, labels) must carry an updater; labels and RMSD texts are pre-created and toggled by opacity instead of added/removed.
 - **`scripts/render_traj.py`** runs the three stages in order and prints the video path.
+
+## E. Density change across X-ray datasets (`render_density.py` pipeline)
+
+```
+<ID>.cif + <ID>-sf.cif (per dataset) ──► density_prepare.py ──► maps/*.ccp4 + meta.json ──► pymol_density.py ──► frames/{overview,zoom}/*.png ──► density_scene.py ──► video
+```
+
+- **`scripts/density_prepare.py`** (`.venv`; gemmi + numpy)
+  - `load_dataset()` converts the structure-factor mmCIF to an MTZ-like table with gemmi (`IMEAN, SIGIMEAN, FC, PHIC`; some reflections have no F_calc, so NaNs are masked).
+  - `scaled_fo()` sets Fo = sqrt(max(I,0)) and fits `ln(Fc/Fo) = a + b/d²` in 15 resolution bins to put every dataset on the |Fc| scale.
+  - `make_grid()` Fourier-transforms coefficients to a map (`Mtz.transform_f_phi_to_map`). 2Fo−Fc uses each dataset's own phases; the difference map uses `Fo(n) − Fo(1)` (after one scalar scale) with **set 1's phases**.
+  - All maps are written in one absolute unit (σ of set 1's 2Fo−Fc map) and cropped around the molecule (`write_map`). `diff_contour` = n·σ of the last difference map and is reused for every frame.
+  - `R_iso = Σ|Fo(n)−Fo(1)| / ΣFo(1)` per dataset is the overall change measure used for the bar chart.
+- **`scripts/pymol_density.py`** (inside PyMOL): loads all models and maps with **`normalize_ccp4_maps 0`** (otherwise PyMOL silently rescales every map to its own σ and the contours stop being comparable — an early version of this pipeline showed noise everywhere because of that). Per frame it draws `isomesh` objects for the current dataset only: overview = difference ± contour around all atoms; zoom = 2Fo−Fc at 1σ + difference around the focus residues, with a semi-transparent cartoon behind.
+- **`scenes/density_scene.py`**: shows `frames_per_set` frames per dataset for `SET_SECONDS`, dissolving only between datasets, plus a bar chart with the current dataset highlighted. As in the trajectory scene, anything that changes during playback (images, bars, readouts) carries an updater so Cairo does not cache it as background.
