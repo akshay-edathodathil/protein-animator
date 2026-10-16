@@ -28,7 +28,7 @@ class ProteinHybridScene(Scene):
         frames = load_frames()
         n = len(frames)
 
-        img = ImageMobject(frames[0]).set_height(config.frame_height * 0.78).shift(UP * 0.3)  # leave room for caption
+        img = ImageMobject(frames[0]).set(height=config.frame_height * 0.78).shift(UP * 0.3)  # leave room for caption
         clock = {"t": 0.0}
 
         def spin(mob, dt):

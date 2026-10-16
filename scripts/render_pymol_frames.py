@@ -11,6 +11,7 @@ import subprocess
 from pathlib import Path
 
 from fetch_and_convert import ROOT, find_pymol
+from frame_cache import ensure_fresh
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--pdb", default="6QL9")
@@ -25,6 +26,7 @@ a = ap.parse_args()
 exe = find_pymol()
 if not exe:
     raise SystemExit("PyMOL not found (see README: conda create -n pymol -c conda-forge pymol-open-source)")
+ensure_fresh(a.out, {"pdb": a.pdb, "frames": a.frames, "w": a.width, "h": a.height, "aa": a.antialias, "q": a.surface_quality})
 cif = ROOT / "assets" / f"{a.pdb.upper()}.cif"
 script = Path(__file__).with_name("pymol_turntable.py")
 subprocess.run([exe, "-cq", str(script), "--", str(cif), a.out, str(a.frames), str(a.width), str(a.height),

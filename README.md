@@ -84,7 +84,7 @@ Step 2 — composite with Manim:
 ./render.sh hybrid                 # uses frames-hq if present, otherwise frames-fast
 FRAME_DIR=assets/pymol_frames ./render.sh hybrid     # force a specific frame set
 ```
-Frames are resumable: if you stop the PyMOL step, re-running it skips frames already written.
+Frames are resumable: if you stop the PyMOL step, re-running it with the same settings skips frames already written. If you change any setting (size, frame count, ...), stale frames are detected and deleted automatically.
 
 ### C. Cairo scene (original spec)
 ```bash
@@ -143,7 +143,7 @@ The video path is printed at the end (`assets/trajectory/media/videos/trajectory
 - The structures must be the *same protein* with matching residue numbering and chain IDs (different constructs work, but only residues common to all are shown).
 - Interpolation is straight-line in Cartesian coordinates, so for large domain motions the in-between frames are an approximation (bonds can briefly look compressed). It is a visual guide, not a simulation. With real MD/NMR snapshots, use `--between 0` or a small value.
 - Chain IDs must be one character (PDB format).
-- Resume: frames already rendered are skipped if you re-run with the same `--out`.
+- Resume: frames already rendered are skipped if you re-run with the same settings and `--out`; changing settings clears them automatically.
 
 **Computation times** (this Mac, 10 cores): adenylate kinase (214 residues), 2 structures, 30 interpolated frames, 1280×720, antialias 2 → **~1 min total** (~0.4 s/frame ray tracing). NMR ensemble (76 residues), 10 models, 55 frames at 960×540, antialias 1 → ~37 s. Time scales with number of frames × protein size (a huge complex like 6QL9 as *cartoon* would be far slower per frame; not measured).
 

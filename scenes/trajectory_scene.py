@@ -37,7 +37,7 @@ class TrajectoryScene(Scene):
         # ---- static layout ----
         title = Text(meta["title"], font_size=34).to_corner(UL)
         img = ImageMobject(np.asarray(Image.open(frame_files[0]).convert("RGBA")))
-        img.set_height(config.frame_height * 0.72).shift(UP * 0.35)
+        img.set(height=config.frame_height * 0.72).shift(UP * 0.35)
 
         left, right, y = -4.5, 3.5, -3.15
         line = Line([left, y, 0], [right, y, 0], color=GREY_B, stroke_width=3)

@@ -41,8 +41,8 @@ class DensityScene(Scene):
         sub = Text("Refined models barely differ; the structure factors change across the series",
                    font_size=18, color=GREY_A).next_to(title, DOWN, buff=0.12).align_to(title, LEFT)
         side = 4.2
-        left_img = keep_live(ImageMobject(load("overview", 1)).set_height(side).move_to([-3.6, -0.05, 0]))
-        right_img = keep_live(ImageMobject(load("zoom", 1)).set_height(side).move_to([3.6, -0.05, 0]))
+        left_img = keep_live(ImageMobject(load("overview", 1)).set(height=side).move_to([-3.6, -0.05, 0]))
+        right_img = keep_live(ImageMobject(load("zoom", 1)).set(height=side).move_to([3.6, -0.05, 0]))
         cap_l = Text("Whole molecule: difference density Fo(n) − Fo(1)", font_size=17, color=GREY_A).next_to(left_img, UP, buff=0.08)
         cap_r = Text("Active site: 2Fo−Fc and difference density", font_size=17, color=GREY_A).next_to(right_img, UP, buff=0.08)
 

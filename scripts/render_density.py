@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from frame_cache import ensure_fresh  # noqa: E402
 from density_prepare import CYPA_ACTIVE_SITE, SERIES_278K, prepare  # noqa: E402
 from fetch_and_convert import ROOT, find_pymol  # noqa: E402
 
@@ -50,6 +51,9 @@ if not pymol:
 cfg = {"density_dir": str(out), "data_dir": str(data_dir), "frames_dir": str(out / "frames"), "size": a.size,
        "antialias": a.antialias, "ray_mode": a.ray_mode, "frames_per_set": a.frames_per_set, "rotate": a.rotate}
 (out / "pymol_config.json").write_text(json.dumps(cfg))
+meta = json.loads((out / "meta.json").read_text())
+ensure_fresh(out / "frames", {**cfg, "ids": ids, "focus": [r["resi"] for r in meta["focus_residues"]],
+                              "diff_contour": meta["diff_contour"], "dmin": a.dmin, "diff_dmin": a.diff_dmin})
 print(f"Ray-tracing {len(ids) * a.frames_per_set * 2} panel images with PyMOL...")
 subprocess.run([pymol, "-cq", str(Path(__file__).with_name("pymol_density.py")), "--", str(out / "pymol_config.json")], check=True)
 

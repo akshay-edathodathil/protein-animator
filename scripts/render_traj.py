@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fetch_and_convert import ROOT, find_pymol  # noqa: E402
+from frame_cache import ensure_fresh  # noqa: E402
 from traj_prepare import add_prepare_args, run_prepare  # noqa: E402
 
 ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -54,6 +55,8 @@ cfg = {"traj_dir": str(out), "frames_dir": str(out / "frames"), "width": a.width
        "antialias": a.antialias, "ray_mode": a.ray_mode, "color_by": a.color_by, "ss": a.ss,
        "rotate": a.rotate, "disp_max": a.disp_max}
 (out / "pymol_config.json").write_text(json.dumps(cfg))
+ensure_fresh(out / "frames", {**cfg, "n_frames": meta["n_frames"], "frames": [(f["label"], round(f["rmsd"], 3)) for f in meta["frames"]],
+                              "disp_max": meta["disp_max"]})
 print(f"Ray-tracing {meta['n_frames']} frames with PyMOL...")
 subprocess.run([pymol, "-cq", str(Path(__file__).with_name("pymol_traj.py")), "--", str(out / "pymol_config.json")], check=True)
 
