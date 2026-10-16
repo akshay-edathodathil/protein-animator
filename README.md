@@ -187,7 +187,8 @@ Files are read from `ProteinTimeSeries/` (model `<ID>.cif`/`.pdb` + structure fa
 - The deposited structure-factor files contain intensities + F_calc/phase, not ready-made map coefficients, so the maps here are *not* sigma-A weighted (no refinement program is run). They are good for visualising change; use Phenix/Refmac maps for publication-quality density.
 - The zoom region (`--focus`) defaults to the CypA active site for the built-in 278 K series and to `auto` (residues with the strongest difference peaks) for your own data; or give residue numbers.
 - Difference maps are in each entry's own crystal frame; cell edges drift by <0.3 Å across the CypA series, which is negligible for this visualisation.
-- For 5KUZ-5KV7 the difference density is real but diffuse (peaks up to ~5 σ spread over many residues; R_iso rises 3% -> 11%), not a single dramatic site. The video shows exactly that.
+- For 5KUZ-5KV7 (278 K) the difference density is real but diffuse (peaks up to ~5 σ spread over many residues; R_iso rises 3% -> 11%), not a single dramatic site. The video shows exactly that. The 100 K series (5KUL-5KUW) behaves the same way but changes more (R_iso 3% -> 16.5%).
+- The difference contour is set **per series** (±3 σ of that series' last difference map), so blob density is not comparable between two videos; compare the R_iso bars instead, which are on the same scale.
 
 **Computation times** (this Mac, 10 cores, CypA 278 K, 9 datasets): density maps + R_iso ~1 s (plus ~5 s the first time, to download the missing entries); PyMOL ray tracing of 144 panel images (8 frames per dataset x 2 panels, 800 px, antialias 2) **~2.7 min**; Manim compositing at 1080p30 (24.7 s video) **~1 min**. Total ~4 min.
 
