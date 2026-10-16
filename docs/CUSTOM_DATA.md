@@ -7,7 +7,7 @@ Two pipelines turn a series of your own files into a Manim video. Pick by **what
 | Several **coordinate files** (PDB/mmCIF; MD snapshots, NMR models, different conformations) whose atoms move | The protein *moving* (cartoon, colored by how far each residue moved) | **A. Conformational change** (`render.sh traj`) |
 | Several **crystallographic datasets** (model + structure factors) where the refined models barely differ but the data do (dose series, temperature series, time-resolved) | Change in **electron density** across the series | **B. Density change** (`render.sh density`) |
 
-Both need PyMOL (ray tracing) and the Python environment. If you haven't set up yet, do [README §1](../README.md#1-setup) (`./setup.sh --with-pymol`) first. All commands below are run from the project folder.
+**New here? Run the matching example first** (`./render.sh example run adk --quick`, or `cypa278`); [`examples/README.md`](../examples/README.md) shows the equivalent command for each pipeline, ready to copy. Both pipelines need PyMOL (ray tracing) and the Python environment. If you haven't set up yet, do [README §1](../README.md#1-setup) (`./setup.sh --with-pymol`) first. All commands below are run from the project folder.
 
 ---
 

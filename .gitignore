@@ -19,3 +19,7 @@ ProteinTimeSeries/
 assets/pymol_frames*/
 assets/trajectory*/
 assets/density*/
+
+# Example inputs downloaded on demand and example outputs (examples/adenylate_kinase/ is committed)
+examples/data/
+assets/examples/

@@ -62,6 +62,7 @@ The default Manim renderer has **no depth buffer**: it paints triangles back-to-
 
 ## Helper scripts
 
+- `scripts/examples.py` — runs the built-in examples (`adk`, `nmr`, `cypa278`, `cypa100`): downloads missing inputs from RCSB (`urlretrieve`, never overwriting existing files), builds the command for `render_traj.py` / `render_density.py` (`--quick` swaps in small, fast settings and a separate output folder), and forwards unknown options to the render script (`parse_known_args`, so later options override the example's defaults).
 - `setup.sh` — verifies Python ≥ 3.10 and system packages, creates `.venv`, installs `requirements.txt`; `--with-pymol` also creates the conda env.
 - `render.sh` — one entry point for `mesh | gl | cairo | frames-fast | frames-hq | hybrid`; extra args pass through to `manim`.
 

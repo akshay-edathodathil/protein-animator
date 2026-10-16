@@ -18,12 +18,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from frame_cache import ensure_fresh  # noqa: E402
-from density_prepare import CYPA_ACTIVE_SITE, SERIES_278K, prepare  # noqa: E402
+from density_prepare import CYPA_ACTIVE_SITE, SERIES_100K, SERIES_278K, prepare  # noqa: E402
 from fetch_and_convert import ROOT, find_pymol  # noqa: E402
 
 ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 ap.add_argument("--dir", default="ProteinTimeSeries")
-ap.add_argument("--ids", default=",".join(SERIES_278K), help="PDB IDs in series order")
+ap.add_argument("--ids", default=",".join(SERIES_278K), help="dataset names/PDB IDs in series order (default: CypA 278 K series)")
 ap.add_argument("--title", default=None, help="video title (default: generic, or CypA text for the built-in series)")
 ap.add_argument("--labels", help="comma-separated label per dataset, e.g. \"0 min,5 min,10 min\" (default: Data set k)")
 ap.add_argument("--subtitle", default=None, help="line under the title")
@@ -51,10 +51,10 @@ data_dir = Path(a.dir).resolve()
 norm = lambda x: x.strip().upper() if re.fullmatch(r"[0-9][A-Za-z0-9]{3}", x.strip()) else x.strip()
 ids = [norm(x) for x in a.ids.split(",")]
 labels = [x.strip() for x in a.labels.split(",")] if a.labels else None
-builtin = ids in (SERIES_278K,)
+builtin = {tuple(SERIES_278K): "278 K", tuple(SERIES_100K): "100 K"}.get(tuple(ids))   # built-in CypA series
 focus = a.focus or (CYPA_ACTIVE_SITE if builtin else "auto")
-title = a.title or ("Human cyclophilin A, 278 K: data sets 1 to 9" if builtin else f"Electron density change across {len(ids)} datasets")
-subtitle = a.subtitle or ("Refined models barely differ; the structure factors change across the series" if builtin
+title = a.title or (f"Human cyclophilin A, {builtin}: data sets 1 to 9" if builtin else f"Electron density change across {len(ids)} datasets")
+subtitle = a.subtitle or ("Refined models barely differ; the structure factors change across the series" if builtin == "278 K"
                           else "Density from each dataset's structure factors; difference density vs the first dataset")
 zoom_label = a.zoom_label or ("Active site" if builtin else "Focus residues")
 prepare(data_dir, ids, out, a.dmin, a.diff_dmin, focus, a.diff_nsigma, not a.no_download, labels)

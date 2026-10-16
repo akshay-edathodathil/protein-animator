@@ -7,7 +7,9 @@
 #   ./render.sh frames-hq       # PyMOL ray-traced turntable, 60 frames, high quality (slow)
 #   ./render.sh hybrid [flags]  # PyMOL frames + Manim titles           (default 720p30)
 #   ./render.sh traj <pdb files...> [options]   # structure CHANGE over time from several PDBs (see README)
-#   ./render.sh traj-demo       # adenylate kinase open -> closed example
+#   ./render.sh example list    # built-in examples: adk | nmr | cypa278 | cypa100  (data downloaded automatically)
+#   ./render.sh example run adk [--quick]   # --quick = small, fast render (~1 min)
+#   ./render.sh traj-demo       # same as: example run adk
 #   ./render.sh density [options]  # electron-density change across X-ray datasets (CypA 278 K series by default)
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -31,8 +33,8 @@ case "$mode" in
     [[ -n "$(ls "$FRAME_DIR" 2>/dev/null)" ]] || { echo "No frames. Run ./render.sh frames-fast first."; exit 1; }
     FRAME_DIR="$FRAME_DIR" manim "${@:-${default_flags[@]}}" scenes/protein_scene_hybrid.py ProteinHybridScene ;;
   traj)        python scripts/render_traj.py "$@" ;;
-  traj-demo)   python scripts/render_traj.py examples/adenylate_kinase/4AKE.pdb examples/adenylate_kinase/1AKE.pdb \
-                 --labels "Open (4AKE),Closed (1AKE)" --chains A --title "Adenylate kinase: lid closing" "$@" ;;
+  example)     python scripts/examples.py "$@" ;;
+  traj-demo)   python scripts/examples.py run adk "$@" ;;
   density)     python scripts/render_density.py "$@" ;;
-  *) sed -n '2,13p' "$0"; exit 1 ;;
+  *) sed -n '2,15p' "$0"; exit 1 ;;
 esac

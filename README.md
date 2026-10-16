@@ -15,9 +15,11 @@ git clone https://github.com/akshay-edathodathil/protein-animator.git && cd prot
 ./setup.sh                 # venv + Python packages   (enough for the OpenGL scene)
 ./render.sh gl             # first video in ~25 s  -> media/videos/...
 ./setup.sh --with-pymol    # adds PyMOL (needs conda/Miniforge) for the other pipelines
-./render.sh traj-demo      # protein conformational change demo (~1 min)
-./render.sh density        # electron-density series demo (~5 min; downloads ~15 MB from RCSB)
+./render.sh example list                 # 4 ready-made examples; their data is downloaded automatically
+./render.sh example run adk --quick      # try one in seconds (shape change); drop --quick for full quality
+./render.sh example run cypa278          # electron-density series (downloads ~15 MB from RCSB)
 ```
+Examples, expected results and timings: [`examples/README.md`](examples/README.md).
 **Use your own data:** [`docs/CUSTOM_DATA.md`](docs/CUSTOM_DATA.md) · **How the code works:** [`docs/CODE_GUIDE.md`](docs/CODE_GUIDE.md)
 
 > Tested on macOS (Apple Silicon), Python 3.12, Manim 0.22. Linux should work with the packages listed below (not tested). Windows is untested; `setup.sh`/`render.sh` are bash scripts.
@@ -121,7 +123,7 @@ Give the pipeline several structures in time order (separate PDB/mmCIF files, a 
 
 ```bash
 ./setup.sh --with-pymol                       # PyMOL is required
-./render.sh traj-demo                         # example: adenylate kinase, open (4AKE) -> closed (1AKE)
+./render.sh example run adk                   # example: adenylate kinase, open (4AKE) -> closed (1AKE); also: example run nmr
 
 # your own data: pass a folder (sorted naturally: t2.pdb before t10.pdb) or list files in time order
 ./render.sh traj my_folder/ --labels "0 ns,10 ns,20 ns" --title "My protein" --chains A
@@ -169,7 +171,8 @@ Use this when the refined PDB models of a series barely differ but the diffracti
 
 ```bash
 ./setup.sh --with-pymol
-./render.sh density                           # CypA at 278 K, data sets 1-9 (5KUZ, 5KV0 ... 5KV7)
+./render.sh example run cypa278               # ready-made: CypA at 278 K, data sets 1-9 (5KUZ ... 5KV7); also: example run cypa100
+./render.sh density                           # the same thing, called directly (the other options below also apply)
 ./render.sh density --ids 5KUL,5KUN,5KUO,5KUQ,5KUR,5KUS,5KUU,5KUV,5KUW --out assets/density_100k \
     --focus 55,60,61,63,72,101,102,103,111,113,121,122,126 --title "Human cyclophilin A, 100 K: data sets 1 to 9" --zoom-label "Active site"   # the 100 K series
 ./render.sh density --dir my_series --ids t00,t10,t20 --labels "0 min,10 min,20 min" --title "My series"   # your own files (see docs/CUSTOM_DATA.md)
@@ -251,11 +254,13 @@ scripts/                       command-line tools
   render_traj.py, traj_prepare.py, pymol_traj.py   conformational change pipeline
   render_density.py, density_prepare.py, pymol_density.py   electron-density pipeline
   frame_cache.py                 invalidates cached frames when render settings change
+  examples.py                    runs the built-in examples, downloading their data from RCSB
 assets/6QL9_surface.obj        200k-face colored surface mesh (committed; regenerate with ./render.sh mesh)
-examples/adenylate_kinase/     4AKE (open) and 1AKE (closed) demo inputs
+examples/                      README.md (what each example shows, times), adenylate_kinase/ (committed inputs);
+                               other example data is downloaded to examples/data/ on demand
 docs/                          CODE_GUIDE.md, CUSTOM_DATA.md
 ```
-Generated and not committed (git-ignored): `.venv/`, `media/`, `assets/*.cif`, `assets/pymol_frames*/`, `assets/trajectory*/`, `assets/density*/`, `ProteinTimeSeries/` (downloaded structure data), logs.
+Generated and not committed (git-ignored): `.venv/`, `media/`, `assets/*.cif`, `assets/pymol_frames*/`, `assets/trajectory*/`, `assets/density*/`, `assets/examples/`, `examples/data/`, `ProteinTimeSeries/` (downloaded structure data), logs.
 
 ## 8. Data sources
 
