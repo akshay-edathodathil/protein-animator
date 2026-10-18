@@ -180,6 +180,8 @@ Use this when the refined PDB models of a series barely differ but the diffracti
 ```
 Files are read from `ProteinTimeSeries/` (model `<ID>.cif`/`.pdb` + structure factors `<ID>-sf.cif`/`<ID>.mtz`) and downloaded from RCSB when missing (real PDB IDs only). The video path is printed at the end (`assets/density/media/...`).
 
+**Focus on one amino acid:** `./render.sh density --dir my_folder --residue A:113` (chain A, residue 113): tight view, no rotation, density and difference density around that residue across the series.
+
 **Slow ray tracing?** Add `--fast` (small, antialias 1, 2 frames per dataset), `--panels zoom` (only the zoom panel, half the images) and/or `--total-frames 20`. Details in [`docs/CUSTOM_DATA.md`](docs/CUSTOM_DATA.md).
 
 **What it does** (`scripts/density_prepare.py`)

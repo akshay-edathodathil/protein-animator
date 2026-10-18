@@ -40,14 +40,16 @@ ap.add_argument("--diff-nsigma", type=float, default=3.0)
 ap.add_argument("--size", type=int, default=900, help="square panel size in pixels")
 ap.add_argument("--antialias", type=int, default=2)
 ap.add_argument("--ray-mode", type=int, default=0)
-ap.add_argument("--frames-per-set", type=int, default=10, help="frames ray-traced per dataset (each frame = 2 panel images)")
+ap.add_argument("--frames-per-set", type=int, default=None, help="frames ray-traced per dataset (default 10; 1 when there is no rotation)")
 ap.add_argument("--total-frames", type=int, default=None,
                 help="instead of --frames-per-set: about this many frames in total, spread evenly over the datasets")
+ap.add_argument("--residue", default=None, metavar="CHAIN:NUMBER",
+                help="focus on ONE amino acid, e.g. A:113 (chain A, residue 113): tight view of that residue, only the zoom panel, no rotation, one frame per dataset")
 ap.add_argument("--panels", choices=["both", "zoom", "overview"], default="both",
                 help="which panel(s) to render: both (default), zoom (only the zoom on the focus residues, shown larger), overview")
 ap.add_argument("--fast", action="store_true",
                 help="draft preset for slow machines: --size 500 --antialias 1 --frames-per-set 2 (other options still override)")
-ap.add_argument("--rotate", type=float, default=20.0, help="total slow rotation in degrees (0 = fixed view)")
+ap.add_argument("--rotate", type=float, default=None, help="total slow rotation in degrees (default 20; 0 with --residue; 0 = fixed view)")
 ap.add_argument("--set-seconds", type=float, default=2.5, help="video seconds per dataset")
 ap.add_argument("--manim-args", default="-r 1280,720 --fps 30")
 ap.add_argument("--out", default="assets/density")
@@ -57,6 +59,18 @@ pre, _ = ap.parse_known_args()
 if pre.fast:                                  # preset values become the defaults; explicit options still win
     ap.set_defaults(size=500, antialias=1, frames_per_set=2)
 a = ap.parse_args()
+explicit = lambda *names: any(x == n or x.startswith(n + "=") for x in sys.argv for n in names)
+single = bool(a.residue)
+if single:
+    a.focus = a.residue                       # --residue overrides --focus
+    if not explicit("--panels"):
+        a.panels = "zoom"                     # one residue: only the zoom panel makes sense
+if a.rotate is None:
+    a.rotate = 0.0 if single else 20.0
+if a.rotate == 0 and not explicit("--frames-per-set", "--total-frames"):
+    a.frames_per_set = 1                      # a fixed view makes every frame of a dataset identical
+if a.frames_per_set is None:
+    a.frames_per_set = 10
 
 out = Path(a.out).resolve()
 norm = lambda x: x.strip().upper() if re.fullmatch(r"[0-9][A-Za-z0-9]{3}", x.strip()) else x.strip()
@@ -83,6 +97,9 @@ subtitle = a.subtitle or ("Refined models barely differ; the structure factors c
                           else "Density from each dataset's structure factors; difference density vs the first dataset")
 zoom_label = a.zoom_label or ("Active site" if builtin else "Focus residues")
 prepare(data_dir, ids, out, a.dmin, a.diff_dmin, focus, a.diff_nsigma, not a.no_download, labels, files)
+if single and not a.zoom_label:               # caption such as "Arg55 (chain A)" from the model
+    r0 = json.loads((out / "meta.json").read_text())["focus_residues"][0]
+    zoom_label = f"{r0['resn'].capitalize()}{r0['resi']} (chain {r0['chain']})"
 if a.prepare_only:
     raise SystemExit(0)
 
@@ -96,10 +113,10 @@ print(f"{len(ids)} datasets x {a.frames_per_set} frame(s) = {len(ids) * a.frames
       f"({len(ids) * a.frames_per_set * len(panels)} panel images: {', '.join(panels)}) at {a.size} px, antialias {a.antialias}")
 cfg = {"density_dir": str(out), "data_dir": str(data_dir), "frames_dir": str(out / "frames"), "size": a.size,
        "antialias": a.antialias, "ray_mode": a.ray_mode, "frames_per_set": a.frames_per_set, "rotate": a.rotate,
-       "panels": panels}
+       "panels": panels, "tight": single, "focus_buffer": 5 if single else 9}
 (out / "pymol_config.json").write_text(json.dumps(cfg))
 meta = json.loads((out / "meta.json").read_text())
-ensure_fresh(out / "frames", {**cfg, "ids": ids, "focus": [r["resi"] for r in meta["focus_residues"]],
+ensure_fresh(out / "frames", {**cfg, "ids": ids, "focus": [(r["chain"], r["resi"]) for r in meta["focus_residues"]],
                               "diff_contour": meta["diff_contour"], "dmin": a.dmin, "diff_dmin": a.diff_dmin})
 print("Ray-tracing with PyMOL (progress lines are per frame)...")
 subprocess.run([pymol, "-cq", str(Path(__file__).with_name("pymol_density.py")), "--", str(out / "pymol_config.json")], check=True)

@@ -216,6 +216,40 @@ def residue_scores(st, diff_grids, noise):
     return sorted(((float(np.mean(v)), k) for k, v in scores.items()), reverse=True)
 
 
+def resolve_focus(focus, st, ranked=None, ident=""):
+    """Turn --focus into [{'chain','resi','resn','score'}].
+
+    focus: 'auto' (strongest difference peaks), or comma-separated residues, each 'CHAIN:NUMBER' (e.g. A:113)
+    or just 'NUMBER' (first chain that has that residue number).
+    """
+    chains = {ch.name: {r.seqid.num: r.name for r in ch if not r.is_water() and r.het_flag == "A"} for ch in st[0]}
+    score_of = {(k[0], k[1]): sc for sc, k in (ranked or [])}
+    if focus == "auto":
+        if not ranked:
+            raise SystemExit("--focus auto needs the difference maps; it cannot be resolved here.")
+        picks = [(k[0], k[1]) for _, k in ranked[:8]]
+    else:
+        picks, bad = [], []
+        for tok in (t.strip() for t in focus.split(",") if t.strip()):
+            m = re.fullmatch(r"(?:([^:\s]+):)?(-?\d+)", tok)
+            if not m:
+                raise SystemExit(f"Cannot read residue '{tok}'. Use CHAIN:NUMBER (e.g. A:113) or just NUMBER.")
+            ch, num = m.group(1), int(m.group(2))
+            if ch is None:
+                ch = next((c for c, res in chains.items() if num in res), None)
+            if ch is None or num not in chains.get(ch, {}):
+                bad.append(tok)
+            else:
+                picks.append((ch, num))
+        if bad:
+            avail = "; ".join(f"chain {c}: residues {min(r)}-{max(r)}" for c, r in chains.items() if r)
+            raise SystemExit(f"Residue(s) not found in the model{' ' + ident if ident else ''}: {', '.join(bad)}.\n"
+                             f"Available: {avail}")
+    if not picks:
+        raise SystemExit("No focus residues given.")
+    return [{"chain": c, "resi": n, "resn": chains[c][n], "score": round(score_of.get((c, n), 0.0), 2)} for c, n in picks]
+
+
 # CypA active site / catalytic network (human numbering); override with --focus for other proteins
 CYPA_ACTIVE_SITE = "55,60,61,63,72,101,102,103,111,113,121,122,126"
 
@@ -239,6 +273,8 @@ def prepare(data_dir, ids, out, dmin, diff_dmin, focus=CYPA_ACTIVE_SITE, nsigma=
         data.append(ds)
 
     ref = data[0]
+    if focus != "auto":                       # fail fast on a mistyped residue, before the expensive map calculations
+        resolve_focus(focus, ref["st"], ident=ref["id"])
     for ds in data[1:]:
         if ds["sg"].xhm() != ref["sg"].xhm():
             raise SystemExit(f"{ds['id']} is in space group {ds['sg'].xhm()} but {ref['id']} is in {ref['sg'].xhm()}: "
@@ -292,24 +328,15 @@ def prepare(data_dir, ids, out, dmin, diff_dmin, focus=CYPA_ACTIVE_SITE, nsigma=
         if n > 0:
             write_map(diffs[n - 1], ref["st"], out / "maps" / f"{ds['id']}_diff.ccp4")
     ranked = residue_scores(ref["st"], diffs, [s["diff_rms"] for s in stats[1:]])
-    score_of = {k[1]: (k[0], k[2], sc) for sc, k in ranked}
-    if focus == "auto":
-        nums = [k[1] for _, k in ranked[:8]]
-    else:
-        nums = [int(x) for x in focus.split(",") if x.strip()]
-    chain = ref["st"][0][0].name
-    focus_res = [{"chain": chain, "resi": n, "resn": score_of[n][1], "score": round(score_of[n][2], 2)}
-                 for n in nums if n in score_of]
-    if not focus_res:
-        raise SystemExit("None of the --focus residues exist in the model.")
+    focus_res = resolve_focus(focus, ref["st"], ranked, ref["id"])
 
     meta = {"ids": ids, "dmin": dmin, "diff_dmin": diff_dmin, "sigma_ref": sigma_ref,
             "diff_contour": round(contour, 4), "diff_nsigma": nsigma, "twofofc_contour": 1.0, "datasets": stats, "models": {d["id"]: d["model_file"] for d in data},
-            "focus_residues": focus_res, "top_ranked": [{"resi": k[1], "resn": k[2], "score": round(sc, 2)} for sc, k in ranked[:10]]}
+            "focus_residues": focus_res, "top_ranked": [{"chain": k[0], "resi": k[1], "resn": k[2], "score": round(sc, 2)} for sc, k in ranked[:10]]}
     (out / "meta.json").write_text(json.dumps(meta, indent=1))
     print(f"\nR_iso vs {ids[0]}:  " + "  ".join(f"{s['id']}={s['r_iso']:.3f}" for s in stats[1:]))
     print(f"Difference-map rms (units of set-1 2Fo-Fc sigma): " + "  ".join(f"{s['diff_rms']:.3f}" for s in stats[1:]))
-    print("Zoom focus:", ", ".join(f"{f['resn']}{f['resi']}" for f in focus_res))
+    print("Zoom focus:", ", ".join(f"{f['resn']}{f['chain']}:{f['resi']}" for f in focus_res))
     return meta
 
 

@@ -19,7 +19,8 @@ ids = meta["ids"]
 nm = {i: f"s{k}" for k, i in enumerate(ids)}   # PyMOL-safe object names (dataset names may contain dots, dashes, "and", ...)
 F = cfg["frames_per_set"]
 size = cfg["size"]
-focus = "+".join(str(r["resi"]) for r in meta["focus_residues"])
+focus_sel = " or ".join(f"(chain {r['chain']} and resi {r['resi']})" for r in meta["focus_residues"])
+tight = cfg.get("tight", False)               # single-residue mode: tight view, context sticks, tighter mesh
 lvl_e, lvl_d = meta["twofofc_contour"], meta["diff_contour"]
 
 # Keep the absolute scale written by density_prepare.py (PyMOL would otherwise rescale each map to its own sigma,
@@ -49,8 +50,10 @@ cmd.show("cartoon", f"m_{nm[first]}")
 cmd.orient(f"m_{nm[first]}")
 cmd.zoom(f"m_{nm[first]}", buffer=2)
 view_over = cmd.get_view()
-cmd.show("sticks", f"m_{nm[first]} and resi {focus}")
-cmd.zoom(f"m_{nm[first]} and resi {focus}", buffer=9)
+cmd.show("sticks", f"m_{nm[first]} and ({focus_sel})")
+if tight:                                      # look at the residue along its own principal axes
+    cmd.orient(f"m_{nm[first]} and ({focus_sel})")
+cmd.zoom(f"m_{nm[first]} and ({focus_sel})", buffer=cfg.get("focus_buffer", 9))
 view_zoom = cmd.get_view()
 cmd.hide("everything", f"m_{nm[first]}")
 cmd.disable("all")
@@ -60,14 +63,15 @@ step = cfg["rotate"] / max(n_frames - 1, 1)
 t0 = time.time()
 
 
-def meshes(i, sele, carve, with_e):
+def meshes(i, sele, carve, with_e, carve_d=None):
+    carve_d = carve if carve_d is None else carve_d
     if with_e:
-        cmd.isomesh("mesh_e", f"e_{nm[i]}", lvl_e, sele, buffer=2, carve=carve)
+        cmd.isomesh("mesh_e", f"e_{nm[i]}", lvl_e, sele, buffer=max(2, carve), carve=carve)
         cmd.color("slate", "mesh_e")
         cmd.enable("mesh_e")
     if i != first:
-        cmd.isomesh("mesh_dp", f"d_{nm[i]}", lvl_d, sele, buffer=2, carve=carve)
-        cmd.isomesh("mesh_dn", f"d_{nm[i]}", -lvl_d, sele, buffer=2, carve=carve)
+        cmd.isomesh("mesh_dp", f"d_{nm[i]}", lvl_d, sele, buffer=max(2, carve_d), carve=carve_d)
+        cmd.isomesh("mesh_dn", f"d_{nm[i]}", -lvl_d, sele, buffer=max(2, carve_d), carve=carve_d)
         cmd.color("green", "mesh_dp")
         cmd.color("red", "mesh_dn")
         cmd.enable("mesh_dp")
@@ -89,16 +93,22 @@ for j in range(n_frames):
         cmd.enable(f"m_{nm[i]}")
         cmd.show("cartoon", f"m_{nm[i]}")
         cmd.color("grey70", f"m_{nm[i]}")
-        cmd.set("cartoon_transparency", 0.65 if panel == "zoom" else 0.0, f"m_{nm[i]}")
+        cmd.set("cartoon_transparency", (0.8 if tight else 0.65) if panel == "zoom" else 0.0, f"m_{nm[i]}")
         if panel == "overview":
             cmd.set_view(view_over)
             meshes(i, f"m_{nm[i]}", 2.6, False)
         else:
-            cmd.show("sticks", f"m_{nm[i]} and resi {focus}")
+            cmd.show("sticks", f"m_{nm[i]} and ({focus_sel})")
             cmd.util.cnc(f"m_{nm[i]}")
-            cmd.color("wheat", f"m_{nm[i]} and elem C and resi {focus}")
+            cmd.color("wheat", f"m_{nm[i]} and elem C and ({focus_sel})")
+            if tight:                              # neighbouring residues as thin sticks for context
+                nb = f"byres ((m_{nm[i]} and not ({focus_sel})) within 4.5 of (m_{nm[i]} and ({focus_sel}))) and not ({focus_sel})"
+                cmd.show("sticks", nb)
+                cmd.set("stick_radius", 0.07, nb)
+                cmd.color("grey60", f"({nb}) and elem C")
+                cmd.set("stick_radius", 0.2, f"m_{nm[i]} and ({focus_sel})")
             cmd.set_view(view_zoom)
-            meshes(i, f"m_{nm[i]} and resi {focus}", 2.2, True)
+            meshes(i, f"m_{nm[i]} and ({focus_sel})", *((1.8, True, 3.0) if tight else (2.2, True)))
         cmd.turn("y", angle)
         cmd.png(path, size, size, dpi=150, ray=1)
     print(f"frame {j + 1}/{n_frames}  elapsed {time.time() - t0:.0f}s", flush=True)

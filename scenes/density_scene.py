@@ -73,7 +73,7 @@ class DensityScene(Scene):
             b.move_to([x0 + k * (bw + gap) + bw / 2, y0 + h / 2, 0])
             bars.append(keep_live(b))
             labels.append(Text(str(k + 1), font_size=15, color=GREY_A).move_to([b.get_x(), y0 - 0.22, 0]))
-        axis_cap = Text("R_iso vs data set 1 (%)", font_size=16, color=GREY_A).move_to([x0 + 2.0, y0 + ch + 0.3, 0])
+        axis_cap = Text("Change in diffraction data vs data set 1 (R_iso, %)", font_size=16, color=GREY_A).move_to([x0 + 2.0, y0 + ch + 0.3, 0])
         set_cap = Text("data set", font_size=15, color=GREY_A).move_to([x0 - 0.85, y0 - 0.22, 0])
 
         # per-set readouts (pre-created, toggled by opacity)
@@ -83,30 +83,30 @@ class DensityScene(Scene):
             txt = name + ("" if s["id"] == name else f"  ·  {s['id']}") + ("  (reference)" if s["set"] == 1 else f"  ·  R_iso {100 * s['r_iso']:.1f} %")
             reads.append(keep_live(Text(txt, font_size=24, color=YELLOW).to_corner(UR).set_opacity(0)))
 
-        state = {"t": 0.0, "set": -1, "pos": -1.0}
+        state = {"t": 0.0, "set": -1, "key": None}
+        DISSOLVE = 0.2     # last 20% of each dataset's time is a smooth dissolve into the next dataset
 
-        def blend(panel, pos):
-            i0 = int(pos) % n_frames
-            i1 = min(i0 + 1, n_frames - 1)
-            w = pos - int(pos)
-            a, b = load(panel, i0 + 1), load(panel, i1 + 1)
+        def panel_image(panel, cur, nxt, w):
+            a = load(panel, cur + 1)
+            if w <= 0:
+                return a
+            b = load(panel, nxt + 1)
             return ((1 - w) * a + w * b).astype(np.uint8)
 
         def update(dt):
             state["t"] = min(state["t"] + dt, total - 1e-6)
-            pos = state["t"] / total * n_frames
-            # cross-fade only the last frame of a set into the next (a short dissolve between datasets);
-            # inside a set show frames as they are
-            f = int(pos)
-            frac = pos - f
-            if (f % FRAMES_PER_SET) != FRAMES_PER_SET - 1:
-                frac = 0.0
-            p = f + frac
-            if abs(p - state["pos"]) > 1e-3:
-                state["pos"] = p
+            s_idx = min(int(state["t"] / SET_SECONDS), n_sets - 1)
+            u = state["t"] / SET_SECONDS - s_idx                     # 0..1 within this dataset
+            cur = s_idx * FRAMES_PER_SET + min(int(u * FRAMES_PER_SET), FRAMES_PER_SET - 1)
+            w = 0.0
+            if s_idx < n_sets - 1 and u > 1 - DISSOLVE:
+                x = (u - (1 - DISSOLVE)) / DISSOLVE
+                w = x * x * (3 - 2 * x)                                # smoothstep
+            key = (cur, round(w, 2))
+            if key != state["key"]:
+                state["key"] = key
                 for pn in PANEL_LIST:
-                    imgs[pn].pixel_array = blend(pn, p)
-            s_idx = min(f // FRAMES_PER_SET, n_sets - 1)
+                    imgs[pn].pixel_array = panel_image(pn, cur, (s_idx + 1) * FRAMES_PER_SET, w)
             if s_idx != state["set"]:
                 if state["set"] >= 0:
                     reads[state["set"]].set_opacity(0)
