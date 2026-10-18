@@ -39,6 +39,7 @@ if [[ "${1:-}" == "--with-pymol" ]]; then
 fi
 
 .venv/bin/python -c "import manim, trimesh, gemmi; print('Python deps OK, manim', manim.__version__)"
+.venv/bin/python scripts/smoke_test.py || { echo "Setup finished, but the self-test above failed; fix it before rendering."; exit 1; }
 echo
 echo "Setup done. Next:  ./render.sh gl      (OpenGL scene, ~seconds)"
 echo "Hybrid (PyMOL):    ./setup.sh --with-pymol  &&  ./render.sh frames-fast  &&  ./render.sh hybrid"

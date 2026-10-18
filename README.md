@@ -223,6 +223,7 @@ Not measured: OpenGL/Cairo at 1080p/4K, and Cairo with the current 15,000-face s
 
 | Problem | Fix |
 |---|---|
+| `ValueError: Invalid mode for data type` while Manim renders a video with PyMOL images | Pillow 13 is installed, which breaks Manim 0.22. Run `source .venv/bin/activate && pip install -r requirements.txt` (pins Pillow below 13), or `pip install 'Pillow>=11,<13'`. `./setup.sh` now runs a self-test (`scripts/smoke_test.py`) that catches this |
 | `pycairo`/`pangocairo` build errors on pip install | Install the system packages in 1a, then re-run `./setup.sh` |
 | `ffmpeg: command not found` | `brew install ffmpeg` / `apt install ffmpeg` |
 | `PyMOL not found` | Do 1c, or `export PYMOL=/path/to/pymol` |
