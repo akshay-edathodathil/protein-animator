@@ -45,6 +45,9 @@ ap.add_argument("--total-frames", type=int, default=None,
                 help="instead of --frames-per-set: about this many frames in total, spread evenly over the datasets")
 ap.add_argument("--residue", default=None, metavar="CHAIN:NUMBER",
                 help="focus on ONE amino acid, e.g. A:113 (chain A, residue 113): tight view of that residue, only the zoom panel, no rotation, one frame per dataset")
+ap.add_argument("--view", default=None, metavar="TEXT|FILE",
+                help="exact camera for the zoom panel: the output of PyMOL's get_view (the 'set_view (...)' text or its 18 numbers), "
+                     "or the path of a text file containing it. Implies --panels zoom and no rotation")
 ap.add_argument("--panels", choices=["both", "zoom", "overview"], default="both",
                 help="which panel(s) to render: both (default), zoom (only the zoom on the focus residues, shown larger), overview")
 ap.add_argument("--fast", action="store_true",
@@ -61,12 +64,29 @@ if pre.fast:                                  # preset values become the default
 a = ap.parse_args()
 explicit = lambda *names: any(x == n or x.startswith(n + "=") for x in sys.argv for n in names)
 single = bool(a.residue)
+
+
+def parse_view(text):
+    """PyMOL view (18 numbers) from pasted get_view output, bare numbers, or a file containing either."""
+    p = Path(text.strip()).expanduser()
+    if len(text) < 400 and "\n" not in text and p.is_file():
+        text = p.read_text()
+    nums = re.findall(r"[-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?", text)
+    if len(nums) != 18:
+        raise SystemExit(f"--view needs the 18 numbers of PyMOL's get_view (found {len(nums)}). In PyMOL, orient the molecule, "
+                         "type  get_view  and copy the printed 'set_view (...)' block (quote it, or save it to a text file and give the path).")
+    return [float(x) for x in nums]
+
+
+view = parse_view(a.view) if a.view else None
+if view and not explicit("--panels"):
+    a.panels = "zoom"                         # a camera for the zoom panel: render only that panel
 if single:
     a.focus = a.residue                       # --residue overrides --focus
     if not explicit("--panels"):
         a.panels = "zoom"                     # one residue: only the zoom panel makes sense
 if a.rotate is None:
-    a.rotate = 0.0 if single else 20.0
+    a.rotate = 0.0 if (single or view) else 20.0
 if a.rotate == 0 and not explicit("--frames-per-set", "--total-frames"):
     a.frames_per_set = 1                      # a fixed view makes every frame of a dataset identical
 if a.frames_per_set is None:
@@ -113,7 +133,7 @@ print(f"{len(ids)} datasets x {a.frames_per_set} frame(s) = {len(ids) * a.frames
       f"({len(ids) * a.frames_per_set * len(panels)} panel images: {', '.join(panels)}) at {a.size} px, antialias {a.antialias}")
 cfg = {"density_dir": str(out), "data_dir": str(data_dir), "frames_dir": str(out / "frames"), "size": a.size,
        "antialias": a.antialias, "ray_mode": a.ray_mode, "frames_per_set": a.frames_per_set, "rotate": a.rotate,
-       "panels": panels, "tight": single, "focus_buffer": 5 if single else 9}
+       "panels": panels, "tight": single, "focus_buffer": 5 if single else 9, "view": view}
 (out / "pymol_config.json").write_text(json.dumps(cfg))
 meta = json.loads((out / "meta.json").read_text())
 ensure_fresh(out / "frames", {**cfg, "ids": ids, "focus": [(r["chain"], r["resi"]) for r in meta["focus_residues"]],

@@ -125,6 +125,7 @@ The video path is printed at the end (`assets/density/media/videos/density_scene
 | `--ids a,b,c` | Dataset names in time order (file stems; real PDB IDs also download) |
 | `--labels "0 min,10 min,..."` | Text shown for each dataset instead of "Data set k" |
 | `--title`, `--subtitle`, `--zoom-label` | Text on the video (defaults are generic for custom data) |
+| `--view "<get_view text>"` or `--view view.txt` | **Your own camera for the zoom panel**: the output of PyMOL's `get_view` (the `set_view ( ... )` block, or just its 18 numbers), pasted in quotes or saved in a text file whose path you give. Implies zoom panel only and no rotation. See "Choosing the camera yourself" below |
 | `--residue A:113` | **Focus on one amino acid**: chain `A`, residue number `113`. Shows a tight view of that residue (with its neighbours as thin sticks), its 2Fo−Fc density and the difference density, **no rotation**, only the zoom panel, one frame per dataset (so it is also fast). The caption reads e.g. "Phe113 (chain A)". Residue numbers are those of your model (PDB numbering); a wrong chain/number stops immediately and lists the chains and residue ranges that exist |
 | `--focus 55,60,A:113` | Residues for the zoom panel (several allowed; `CHAIN:NUMBER` or just `NUMBER`, which means the first chain that has that residue number). **Default for your own data is `auto`**: residues with the strongest difference peaks. When the change is diffuse, `auto` picks scattered residues; choosing a region you care about (active site, a loop) usually gives a better zoom |
 | `--diff-nsigma 3` | Difference-map contour = this × σ of the *last* difference map, **the same absolute level in every frame**, so growth of the change is visible. Lower (2–2.5) to show weaker changes (more noise), raise to show only the strongest |
@@ -160,6 +161,16 @@ Easiest: `--fast` combines 2-4. A good first try on a slow machine: `./render.sh
 
 ### 8. How long will it take?
 Measured on a 10-core Mac with the 9-dataset CypA series (165 residues): maps ~1 s; PyMOL 144 panel images at 800 px, antialias 2: ~2.7 min (≈2.2 s per frame pair); Manim at 1080p30 (25 s video): ~1 min. A synthetic 3-dataset test at 500 px finished in 20 s in total. Cost scales with the number of frames and the size of the molecule/mesh.
+
+#### Choosing the camera yourself (`--view`)
+1. Open **PyMOL** and load the model of the **first** dataset (the reference), unchanged (do not `align`, `translate` or `rotate` the object, since the view is stored in the model's own coordinates).
+2. Turn, move and zoom the molecule with the mouse until the frame looks the way you want.
+3. Type `get_view` in PyMOL's command line and copy the printed block (`set_view ( ... )`).
+4. Save it in a text file (e.g. `view.txt`), or paste it in quotes, and run:
+```bash
+./render.sh density --dir my_folder --residue A:113 --view view.txt
+```
+The meshes are drawn around the focus residue(s) (`--residue` or `--focus`), so point those at what is in your view; `--view` only replaces the camera. The video panel is square: PyMOL keeps the *vertical* extent of your window, so keep the object of interest near the middle of your PyMOL window. The same camera is used for every dataset, and there is no rotation unless you add `--rotate`.
 
 ### 9. How to read the video (and what not to over-read)
 - **Bar chart = how much the diffraction data changed.** The height of each bar is **R_iso** of that data set compared with data set 1: `R_iso = Σ|Fo(n) − Fo(1)| / ΣFo(1)`, summed over all reflections the two data sets share (to the `--diff-dmin` resolution), after scaling Fo(n) to Fo(1) with one overall factor. So 0% = identical amplitudes; 10% = on average the structure-factor amplitudes differ by 10%. Data set 1 is the reference, so its bar is 0 by definition. The highlighted bar is the data set currently shown. It is an overall, whole-crystal number; it does not say *where* in the molecule the change is (that is what the difference density shows).

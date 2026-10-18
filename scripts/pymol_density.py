@@ -55,6 +55,8 @@ if tight:                                      # look at the residue along its o
     cmd.orient(f"m_{nm[first]} and ({focus_sel})")
 cmd.zoom(f"m_{nm[first]} and ({focus_sel})", buffer=cfg.get("focus_buffer", 9))
 view_zoom = cmd.get_view()
+if cfg.get("view"):                           # user-supplied camera (PyMOL get_view) replaces the automatic one
+    view_zoom = tuple(cfg["view"])
 cmd.hide("everything", f"m_{nm[first]}")
 cmd.disable("all")
 

@@ -182,6 +182,8 @@ Files are read from `ProteinTimeSeries/` (model `<ID>.cif`/`.pdb` + structure fa
 
 **Focus on one amino acid:** `./render.sh density --dir my_folder --residue A:113` (chain A, residue 113): tight view, no rotation, density and difference density around that residue across the series.
 
+**Choose the camera yourself:** orient the molecule in PyMOL, run `get_view`, and pass it with `--view view.txt` (or the pasted text in quotes); see [`docs/CUSTOM_DATA.md`](docs/CUSTOM_DATA.md).
+
 **Slow ray tracing?** Add `--fast` (small, antialias 1, 2 frames per dataset), `--panels zoom` (only the zoom panel, half the images) and/or `--total-frames 20`. Details in [`docs/CUSTOM_DATA.md`](docs/CUSTOM_DATA.md).
 
 **What it does** (`scripts/density_prepare.py`)
