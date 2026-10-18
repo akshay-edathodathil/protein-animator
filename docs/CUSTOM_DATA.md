@@ -74,11 +74,17 @@ PyMOL time ≈ number of frames × time per frame; per-frame cost grows with pro
    |---|---|
    | observed intensity + sigma | `IMEAN`/`SIGIMEAN`, `I`/`SIGI`, `I-obs`/`SIGI-obs` |
    | *or* observed amplitude + sigma | `F`/`SIGF`, `FP`/`SIGFP`, `F-obs`/`SIGF-obs`, `F-obs-filtered`/`SIGF-obs-filtered` |
-   | calculated amplitude | `FC`, `FC_ALL`, `F-model` |
-   | calculated phase (degrees) | `PHIC`, `PHIC_ALL`, `PHIF-model` |
+   | calculated amplitude + phase (degrees), used as a **matched pair**, best first | `FC_ALL`/`PHIC_ALL`, `FC_ALL_LS`/`PHIC_ALL_LS`, `FC`/`PHIC`, `F-model`/`PHIF-model` |
 
-   Where they come from: an RCSB `-sf.cif` already has `IMEAN, SIGIMEAN, FC, PHIC`. A **Phenix** refinement `*_data.mtz` has `F-obs-filtered`, `SIGF-obs-filtered`, `F-model`, `PHIF-model`. A **Refmac** output MTZ has `FP, SIGFP, FC_ALL, PHIC_ALL`. A raw data-reduction MTZ (only `I, SIGI`) is *not* enough: it has no model phases; run a refinement first. If a column name is not recognised the error lists the columns found; rename them (e.g. with CCP4's `cad` or a few lines of gemmi/Python).
+   Where they come from: an RCSB `-sf.cif` already has `IMEAN, SIGIMEAN, FC, PHIC`. A **Phenix** refinement `*_data.mtz` has `F-obs-filtered`, `SIGF-obs-filtered`, `F-model`, `PHIF-model`. A **Refmac** output MTZ (the file you give as `HKLOUT`) has `FP, SIGFP, FREE, FC, PHIC, FC_ALL, PHIC_ALL, FWT, PHWT, ...`; it works as is. When both pairs are present the pipeline uses `FC_ALL`/`PHIC_ALL` (includes the bulk-solvent contribution) rather than the model-only `FC`/`PHIC`. A raw data-reduction MTZ (only `I, SIGI`) is *not* enough: it has no model phases; run a refinement first. If a column name is not recognised the error lists the columns found; rename them (e.g. with CCP4's `cad` or a few lines of gemmi/Python).
 3. Files for **real PDB IDs** (e.g. `5KUZ`) are downloaded from RCSB automatically if missing. Use `--no-download` to forbid that.
+
+#### Using Refmac output directly
+Refmac's `XYZOUT` (coordinates) and `HKLOUT` (reflections) normally share a name prefix, e.g. `t00_refmac1.pdb` and `t00_refmac1.mtz`. Use that prefix as the dataset name:
+```bash
+./render.sh density --dir my_refmac_runs --ids t00_refmac1,t10_refmac1,t20_refmac1 --labels "0 min,10 min,20 min"
+```
+If your two files do not share a stem, or the reflection file has another extension, copy or rename it to `<stem>.mtz` next to the PDB. The pipeline does not care how the MTZ file is called otherwise; it reads columns by name, so unmeasured reflections (empty `FP`) are fine.
 
 ### 2. Rules for a valid series
 - **Same crystal form**: same space group (checked; the run stops otherwise) and a similar cell (warns above 3% difference).

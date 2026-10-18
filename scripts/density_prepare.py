@@ -33,8 +33,10 @@ OBS_I = ("IMEAN", "I", "I-obs", "IOBS", "I_obs")
 SIG_I = ("SIGIMEAN", "SIGI", "SIGI-obs", "SIGIOBS", "SIGI_obs")
 OBS_F = ("F", "FP", "F-obs", "F-obs-filtered", "FOBS", "F_obs")
 SIG_F = ("SIGF", "SIGFP", "SIGF-obs", "SIGF-obs-filtered", "SIGFOBS", "SIGF_obs")
-FCALC = ("FC", "FC_ALL", "F-model", "FMODEL", "FC_ALL_LS")
-PHICALC = ("PHIC", "PHIC_ALL", "PHIF-model", "PHIFMODEL", "PHIC_ALL_LS")
+# (F_calc, phase) pairs, best first. Refmac writes both FC/PHIC (model only) and FC_ALL/PHIC_ALL (with bulk solvent,
+# the better match to Fobs); the matched pair is used so amplitude and phase always belong together.
+FC_PAIRS = (("FC_ALL", "PHIC_ALL"), ("FC_ALL_LS", "PHIC_ALL_LS"), ("FC", "PHIC"),
+            ("F-model", "PHIF-model"), ("FMODEL", "PHIFMODEL"))
 
 
 def find_files(data_dir: Path, ident: str, download=True):
@@ -80,8 +82,11 @@ def load_dataset(model_path: Path, sf_path: Path):
     cols = mtz.column_labels()
     a = mtz.array
     col = lambda c: a[:, cols.index(c)].astype(float)
-    fc_name = _pick(cols, FCALC, "calculated structure factor (F_calc)", sf_path)
-    phi_name = _pick(cols, PHICALC, "calculated phase", sf_path)
+    pair = next(((f, p) for f, p in FC_PAIRS if f in cols and p in cols), None)
+    if pair is None:
+        raise SystemExit(f"{sf_path.name}: no matching calculated amplitude + phase columns found "
+                         f"(looked for {', '.join(f'{f}/{p}' for f, p in FC_PAIRS)}). Columns present: {cols}")
+    fc_name, phi_name = pair
     if any(c in cols for c in OBS_I):
         i_name = _pick(cols, OBS_I, "observed intensity", sf_path)
         intens, sig = col(i_name), col(_pick(cols, SIG_I, "intensity sigma", sf_path))
