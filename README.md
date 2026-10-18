@@ -180,6 +180,8 @@ Use this when the refined PDB models of a series barely differ but the diffracti
 ```
 Files are read from `ProteinTimeSeries/` (model `<ID>.cif`/`.pdb` + structure factors `<ID>-sf.cif`/`<ID>.mtz`) and downloaded from RCSB when missing (real PDB IDs only). The video path is printed at the end (`assets/density/media/...`).
 
+**Slow ray tracing?** Add `--fast` (small, antialias 1, 2 frames per dataset), `--panels zoom` (only the zoom panel, half the images) and/or `--total-frames 20`. Details in [`docs/CUSTOM_DATA.md`](docs/CUSTOM_DATA.md).
+
 **What it does** (`scripts/density_prepare.py`)
 1. Reads intensities (or amplitudes), F_calc and phases from each structure-factor file (`-sf.cif` or `.mtz`); Fo = sqrt(max(I, 0)), scaled onto |Fc| with a resolution-dependent factor.
 2. **2Fo−Fc map** per dataset (phases from the deposited model).

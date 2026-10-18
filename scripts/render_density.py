@@ -40,13 +40,22 @@ ap.add_argument("--diff-nsigma", type=float, default=3.0)
 ap.add_argument("--size", type=int, default=900, help="square panel size in pixels")
 ap.add_argument("--antialias", type=int, default=2)
 ap.add_argument("--ray-mode", type=int, default=0)
-ap.add_argument("--frames-per-set", type=int, default=10)
+ap.add_argument("--frames-per-set", type=int, default=10, help="frames ray-traced per dataset (each frame = 2 panel images)")
+ap.add_argument("--total-frames", type=int, default=None,
+                help="instead of --frames-per-set: about this many frames in total, spread evenly over the datasets")
+ap.add_argument("--panels", choices=["both", "zoom", "overview"], default="both",
+                help="which panel(s) to render: both (default), zoom (only the zoom on the focus residues, shown larger), overview")
+ap.add_argument("--fast", action="store_true",
+                help="draft preset for slow machines: --size 500 --antialias 1 --frames-per-set 2 (other options still override)")
 ap.add_argument("--rotate", type=float, default=20.0, help="total slow rotation in degrees (0 = fixed view)")
 ap.add_argument("--set-seconds", type=float, default=2.5, help="video seconds per dataset")
 ap.add_argument("--manim-args", default="-r 1280,720 --fps 30")
 ap.add_argument("--out", default="assets/density")
 ap.add_argument("--no-video", action="store_true")
 ap.add_argument("--prepare-only", action="store_true")
+pre, _ = ap.parse_known_args()
+if pre.fast:                                  # preset values become the defaults; explicit options still win
+    ap.set_defaults(size=500, antialias=1, frames_per_set=2)
 a = ap.parse_args()
 
 out = Path(a.out).resolve()
@@ -80,18 +89,24 @@ if a.prepare_only:
 pymol = find_pymol()
 if not pymol:
     raise SystemExit("PyMOL not found (see README: ./setup.sh --with-pymol, or export PYMOL=/path/to/pymol)")
+if a.total_frames:
+    a.frames_per_set = max(1, round(a.total_frames / len(ids)))
+panels = ["overview", "zoom"] if a.panels == "both" else [a.panels]
+print(f"{len(ids)} datasets x {a.frames_per_set} frame(s) = {len(ids) * a.frames_per_set} frames "
+      f"({len(ids) * a.frames_per_set * len(panels)} panel images: {', '.join(panels)}) at {a.size} px, antialias {a.antialias}")
 cfg = {"density_dir": str(out), "data_dir": str(data_dir), "frames_dir": str(out / "frames"), "size": a.size,
-       "antialias": a.antialias, "ray_mode": a.ray_mode, "frames_per_set": a.frames_per_set, "rotate": a.rotate}
+       "antialias": a.antialias, "ray_mode": a.ray_mode, "frames_per_set": a.frames_per_set, "rotate": a.rotate,
+       "panels": panels}
 (out / "pymol_config.json").write_text(json.dumps(cfg))
 meta = json.loads((out / "meta.json").read_text())
 ensure_fresh(out / "frames", {**cfg, "ids": ids, "focus": [r["resi"] for r in meta["focus_residues"]],
                               "diff_contour": meta["diff_contour"], "dmin": a.dmin, "diff_dmin": a.diff_dmin})
-print(f"Ray-tracing {len(ids) * a.frames_per_set * 2} panel images with PyMOL...")
+print("Ray-tracing with PyMOL (progress lines are per frame)...")
 subprocess.run([pymol, "-cq", str(Path(__file__).with_name("pymol_density.py")), "--", str(out / "pymol_config.json")], check=True)
 
 if not a.no_video:
     env = dict(os.environ, DENSITY_DIR=str(out), DENSITY_SET_SECONDS=str(a.set_seconds),
-               DENSITY_FRAMES_PER_SET=str(a.frames_per_set), DENSITY_TITLE=title,
+               DENSITY_FRAMES_PER_SET=str(a.frames_per_set), DENSITY_TITLE=title, DENSITY_PANELS=a.panels,
                DENSITY_SUBTITLE=subtitle, DENSITY_ZOOM_LABEL=zoom_label)
     cmd = [sys.executable, "-m", "manim", *a.manim_args.split(), "--media_dir", str(out / "media"),
            str(ROOT / "scenes" / "density_scene.py"), "DensityScene"]

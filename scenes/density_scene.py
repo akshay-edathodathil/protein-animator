@@ -1,4 +1,4 @@
-"""Electron-density time series scene: two PyMOL panels (whole molecule / zoom) + R_iso bar chart.
+"""Electron-density time series scene: PyMOL panels (whole molecule and/or zoom) + R_iso bar chart.
 
 Normally run via scripts/render_density.py. Manually:
     DENSITY_DIR=assets/density manim -r 1280,720 --fps 30 scenes/density_scene.py DensityScene
@@ -18,6 +18,8 @@ FRAMES_PER_SET = int(os.environ.get("DENSITY_FRAMES_PER_SET", 10))
 TITLE = os.environ.get("DENSITY_TITLE", "Electron density change across the series")
 SUBTITLE = os.environ.get("DENSITY_SUBTITLE", "Density from each dataset's structure factors; difference density vs the first dataset")
 ZOOM_LABEL = os.environ.get("DENSITY_ZOOM_LABEL", "Focus residues")
+PANELS = os.environ.get("DENSITY_PANELS", "both")   # both | zoom | overview
+PANEL_LIST = ["overview", "zoom"] if PANELS == "both" else [PANELS]
 
 
 def load(panel, n):
@@ -30,7 +32,7 @@ class DensityScene(Scene):
         sets = meta["datasets"]
         n_sets = len(sets)
         n_frames = n_sets * FRAMES_PER_SET
-        if not (DENSITY_DIR / "frames" / "zoom" / f"frame{n_frames:05d}.png").exists():
+        if not (DENSITY_DIR / "frames" / PANEL_LIST[0] / f"frame{n_frames:05d}.png").exists():
             raise FileNotFoundError(f"Expected {n_frames} frames in {DENSITY_DIR / 'frames'}; run scripts/render_density.py")
         total = n_sets * SET_SECONDS
 
@@ -41,11 +43,14 @@ class DensityScene(Scene):
         # ---- layout ----
         title = Text(TITLE, font_size=32).to_corner(UL)
         sub = Text(SUBTITLE, font_size=18, color=GREY_A).next_to(title, DOWN, buff=0.12).align_to(title, LEFT)
-        side = 4.2
-        left_img = keep_live(ImageMobject(load("overview", 1)).set(height=side).move_to([-3.6, -0.05, 0]))
-        right_img = keep_live(ImageMobject(load("zoom", 1)).set(height=side).move_to([3.6, -0.05, 0]))
-        cap_l = Text("Whole molecule: difference density Fo(n) − Fo(1)", font_size=17, color=GREY_A).next_to(left_img, UP, buff=0.08)
-        cap_r = Text(f"{ZOOM_LABEL}: 2Fo−Fc and difference density", font_size=17, color=GREY_A).next_to(right_img, UP, buff=0.08)
+        captions = {"overview": "Whole molecule: difference density Fo(n) − Fo(1)",
+                    "zoom": f"{ZOOM_LABEL}: 2Fo−Fc and difference density"}
+        if len(PANEL_LIST) == 2:
+            side, centers = 4.2, {"overview": [-3.6, -0.05, 0], "zoom": [3.6, -0.05, 0]}
+        else:                                      # a single panel is shown larger, in the middle
+            side, centers = 4.7, {PANEL_LIST[0]: [0, 0.0, 0]}
+        imgs = {pn: keep_live(ImageMobject(load(pn, 1)).set(height=side).move_to(centers[pn])) for pn in PANEL_LIST}
+        caps = [Text(captions[pn], font_size=17, color=GREY_A).next_to(imgs[pn], UP, buff=0.08) for pn in PANEL_LIST]
 
         # legend
         def swatch(color, text):
@@ -99,8 +104,8 @@ class DensityScene(Scene):
             p = f + frac
             if abs(p - state["pos"]) > 1e-3:
                 state["pos"] = p
-                left_img.pixel_array = blend("overview", p)
-                right_img.pixel_array = blend("zoom", p)
+                for pn in PANEL_LIST:
+                    imgs[pn].pixel_array = blend(pn, p)
             s_idx = min(f // FRAMES_PER_SET, n_sets - 1)
             if s_idx != state["set"]:
                 if state["set"] >= 0:
@@ -110,7 +115,7 @@ class DensityScene(Scene):
                 bars[s_idx].set_fill(YELLOW)
                 state["set"] = s_idx
 
-        self.add(left_img, right_img, cap_l, cap_r, legend, *bars, *labels, axis_cap, set_cap, *reads)
+        self.add(*imgs.values(), *caps, legend, *bars, *labels, axis_cap, set_cap, *reads)
         self.play(FadeIn(title), FadeIn(sub), run_time=1.2)
         self.add_updater(update)
         self.wait(total)

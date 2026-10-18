@@ -1,6 +1,6 @@
 """Runs INSIDE PyMOL:  pymol -cq scripts/pymol_density.py -- <config.json>
 
-Per dataset, ray-traces two square panels from fixed cameras (+ slow rotation):
+Per dataset, ray-traces two square panels (or only one, see cfg['panels']) from fixed cameras (+ slow rotation):
   overview/  whole molecule (cartoon) with difference density  Fo(n)-Fo(1)  (green +, red -)
   zoom/      focus residues as sticks with 2Fo-Fc density (blue) and the difference density
 Frames are ordered dataset by dataset, `frames_per_set` frames each. Resumable. Launched by render_density.py.
@@ -78,7 +78,7 @@ for j in range(n_frames):
     si = j // F
     i = ids[si]
     angle = j * step
-    for panel in ("overview", "zoom"):
+    for panel in cfg.get("panels", ["overview", "zoom"]):
         os.makedirs(os.path.join(cfg["frames_dir"], panel), exist_ok=True)
         path = os.path.join(cfg["frames_dir"], panel, f"frame{j + 1:05d}.png")
         if os.path.exists(path):

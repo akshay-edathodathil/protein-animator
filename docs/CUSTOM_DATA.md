@@ -130,6 +130,9 @@ The video path is printed at the end (`assets/density/media/videos/density_scene
 | `--dmin 1.8`, `--diff-dmin 2.0` | Resolution limits (Å) for 2Fo−Fc and difference maps. Use a coarser `--diff-dmin` (e.g. 2.5) if your high-resolution shell is noisy |
 | `--size 800`, `--antialias 2` | PyMOL panel size (pixels) and smoothing |
 | `--frames-per-set 8`, `--rotate 20` | Frames rendered per dataset and total slow rotation in degrees (`0` = fixed view) |
+| `--fast` | **Draft preset for slow machines**: `--size 500 --antialias 1 --frames-per-set 2` (other options still override it) |
+| `--total-frames 20` | Instead of `--frames-per-set`: about 20 frames in total, spread evenly over the datasets (e.g. 9 datasets -> 2 per dataset) |
+| `--panels zoom` | Render **only the zoom panel** (the right-hand one), shown larger. Halves the work; `overview` renders only the whole-molecule panel; default `both` |
 | `--set-seconds 2.5` | Video seconds per dataset |
 | `--manim-args "-r 1920,1080 --fps 30"` | Video resolution/frame rate |
 | `--out my_density/` | Output folder (default `assets/density`) |
@@ -144,10 +147,20 @@ It prints **R_iso** of every dataset versus the first (overall size of the chang
 ### 6. Re-make the video without re-ray-tracing
 Re-run the same command with a different `--set-seconds`, `--title`, `--labels`, `--subtitle`, `--zoom-label` or `--manim-args`; the PNG frames are reused (settings are cached) and only the Manim step repeats (~1 min at 1080p). Changing `--size`, `--frames-per-set`, `--rotate`, `--focus`, `--diff-nsigma`, `--dmin`, the datasets, etc. re-renders the frames.
 
-### 7. How long will it take?
+### 7. Slow ray tracing? Speed it up
+PyMOL ray tracing dominates the run time, and it is proportional to **(number of images) x (pixels) x (antialiasing rays)**. Levers, biggest first:
+1. **`--panels zoom`**: one image per frame instead of two.
+2. **Fewer frames**: `--frames-per-set 1` or `2`, or `--total-frames 20`. The datasets are discrete anyway; frames within a dataset only add a slow rotation. (`--rotate 0` for a fixed view.)
+3. **`--antialias 1`**: about 4x fewer rays than the default 2.
+4. **Smaller panels**: `--size 500` instead of 900 (about 3x fewer pixels). 500 px is enough for a 720p video.
+5. **Fewer mesh lines**: a noisy difference map draws very many mesh segments. Raise `--diff-nsigma` (e.g. 4) and/or pick a small `--focus` region.
+
+Easiest: `--fast` combines 2-4. A good first try on a slow machine: `./render.sh density --dir my_folder --panels zoom --fast`. If a single frame still takes minutes, run with `--total-frames 9` first to see the per-frame time, then scale up. On a 10-core Mac, 36 images at 500 px / antialias 1 take about 10 s; the default settings (180 images at 900 px / antialias 2) take about 3 minutes. Slower or older CPUs, and datasets that produce dense difference meshes, can be much slower per image.
+
+### 8. How long will it take?
 Measured on a 10-core Mac with the 9-dataset CypA series (165 residues): maps ~1 s; PyMOL 144 panel images at 800 px, antialias 2: ~2.7 min (≈2.2 s per frame pair); Manim at 1080p30 (25 s video): ~1 min. A synthetic 3-dataset test at 500 px finished in 20 s in total. Cost scales with the number of frames and the size of the molecule/mesh.
 
-### 8. How to read the video (and what not to over-read)
+### 9. How to read the video (and what not to over-read)
 - Blue mesh = 2Fo−Fc at 1 σ (set 1 scale). Green/red = positive/negative Fo(n)−Fo(1) at the fixed contour.
 - The maps come from the deposited/refined phases and are **not σ-A weighted**; they are for visualising change, not for model building or publication-quality figures.
 - Early datasets can look empty by design: the contour is fixed from the *last* dataset. If everything looks empty, lower `--diff-nsigma`.
