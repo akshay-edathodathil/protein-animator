@@ -175,7 +175,8 @@ Use this when the refined PDB models of a series barely differ but the diffracti
 ./render.sh density                           # the same thing, called directly (the other options below also apply)
 ./render.sh density --ids 5KUL,5KUN,5KUO,5KUQ,5KUR,5KUS,5KUU,5KUV,5KUW --out assets/density_100k \
     --focus 55,60,61,63,72,101,102,103,111,113,121,122,126 --title "Human cyclophilin A, 100 K: data sets 1 to 9" --zoom-label "Active site"   # the 100 K series
-./render.sh density --dir my_series --ids t00,t10,t20 --labels "0 min,10 min,20 min" --title "My series"   # your own files (see docs/CUSTOM_DATA.md)
+./render.sh density --dir my_folder                        # your own files: pairs model + MTZ files automatically (docs/CUSTOM_DATA.md)
+./render.sh density --dir my_series --ids t00,t10,t20 --labels "0 min,10 min,20 min" --title "My series"   # or name the datasets yourself
 ```
 Files are read from `ProteinTimeSeries/` (model `<ID>.cif`/`.pdb` + structure factors `<ID>-sf.cif`/`<ID>.mtz`) and downloaded from RCSB when missing (real PDB IDs only). The video path is printed at the end (`assets/density/media/...`).
 

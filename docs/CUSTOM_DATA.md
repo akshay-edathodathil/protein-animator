@@ -65,6 +65,19 @@ PyMOL time ≈ number of frames × time per frame; per-frame cost grows with pro
 
 ## B. Electron-density change from structure factors
 
+### Quickest way: just give it the folder
+```bash
+./render.sh density --dir /path/to/my_folder --prepare-only     # check what it found (about a second)
+./render.sh density --dir /path/to/my_folder                     # make the video
+```
+With only `--dir`, the pipeline **finds the datasets itself**:
+- **Models:** `.pdb`, `.ent`, `.cif`. **Reflections:** MTZ files, recognised by their content, so any or no file extension works (Refmac's `HKLOUT_...` files have none), or `*-sf.cif` files.
+- **Pairing:** a leading `XYZOUT_` / `HKLOUT_` is ignored, as are the extension and a trailing `-sf`. So `XYZOUT_0.1and0.9.pdb` + `HKLOUT_0.1and0.9` form the dataset `0.1and0.9`, and `t00.pdb` + `t00.mtz` form `t00`.
+- **Order:** by the numbers in the names, compared numerically including decimals (`0.15and0.85` comes before `0.2and0.8`, `t2` before `t10`). The **first dataset is the reference** for all difference maps. Add `--reverse` to flip the order.
+- **It prints what it paired**, in series order, before doing anything else. Check this list: wrong pairing or order is the most common mistake. Unpaired files are listed in a warning and ignored; other files (README, `.DS_Store`) are skipped.
+
+Add `--labels "10/90,20/80,..."` (one per dataset, in the printed order) if you want nicer text in the video than the file names, plus `--title`, `--focus` etc. as below. If the automatic pairing is not what you want, name the datasets explicitly with `--ids` (next sections).
+
 ### 1. What you need per dataset
 1. A **model**: `<name>.cif`, `<name>.pdb` or `<name>.ent` (the refined structure for that dataset).
 2. **Structure factors** from the refinement of that model: `<name>-sf.cif`, `<name>.mtz` or `<name>-sf.mtz`.
@@ -80,7 +93,7 @@ PyMOL time ≈ number of frames × time per frame; per-frame cost grows with pro
 3. Files for **real PDB IDs** (e.g. `5KUZ`) are downloaded from RCSB automatically if missing. Use `--no-download` to forbid that.
 
 #### Using Refmac output directly
-Refmac's `XYZOUT` (coordinates) and `HKLOUT` (reflections) normally share a name prefix, e.g. `t00_refmac1.pdb` and `t00_refmac1.mtz`. Use that prefix as the dataset name:
+Refmac's `XYZOUT` (coordinates) and `HKLOUT` (reflections) normally share a name prefix, e.g. `t00_refmac1.pdb` and `t00_refmac1.mtz`, or `XYZOUT_<name>.pdb` and `HKLOUT_<name>`. With `--dir` alone these are paired automatically (see above). To name the datasets explicitly, use the shared prefix as the dataset name:
 ```bash
 ./render.sh density --dir my_refmac_runs --ids t00_refmac1,t10_refmac1,t20_refmac1 --labels "0 min,10 min,20 min"
 ```

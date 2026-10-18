@@ -75,7 +75,7 @@ class DensityScene(Scene):
         reads = []
         for s in sets:
             name = s.get("label") or f"Data set {s['set']}"
-            txt = f"{name}  ·  {s['id']}" + ("  (reference)" if s["set"] == 1 else f"  ·  R_iso {100 * s['r_iso']:.1f} %")
+            txt = name + ("" if s["id"] == name else f"  ·  {s['id']}") + ("  (reference)" if s["set"] == 1 else f"  ·  R_iso {100 * s['r_iso']:.1f} %")
             reads.append(keep_live(Text(txt, font_size=24, color=YELLOW).to_corner(UR).set_opacity(0)))
 
         state = {"t": 0.0, "set": -1, "pos": -1.0}

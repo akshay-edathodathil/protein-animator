@@ -18,12 +18,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from frame_cache import ensure_fresh  # noqa: E402
-from density_prepare import CYPA_ACTIVE_SITE, SERIES_100K, SERIES_278K, prepare  # noqa: E402
+from density_prepare import CYPA_ACTIVE_SITE, SERIES_100K, SERIES_278K, discover, prepare  # noqa: E402
 from fetch_and_convert import ROOT, find_pymol  # noqa: E402
 
 ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-ap.add_argument("--dir", default="ProteinTimeSeries")
-ap.add_argument("--ids", default=",".join(SERIES_278K), help="dataset names/PDB IDs in series order (default: CypA 278 K series)")
+ap.add_argument("--dir", default=None,
+                help="folder with your data. With --dir alone, model + reflection pairs are found automatically")
+ap.add_argument("--ids", default=None,
+                help="dataset names/PDB IDs in series order (default: discovered in --dir; the built-in CypA 278 K series if no --dir)")
+ap.add_argument("--reverse", action="store_true", help="reverse the automatically discovered order")
 ap.add_argument("--title", default=None, help="video title (default: generic, or CypA text for the built-in series)")
 ap.add_argument("--labels", help="comma-separated label per dataset, e.g. \"0 min,5 min,10 min\" (default: Data set k)")
 ap.add_argument("--subtitle", default=None, help="line under the title")
@@ -47,9 +50,22 @@ ap.add_argument("--prepare-only", action="store_true")
 a = ap.parse_args()
 
 out = Path(a.out).resolve()
-data_dir = Path(a.dir).resolve()
 norm = lambda x: x.strip().upper() if re.fullmatch(r"[0-9][A-Za-z0-9]{3}", x.strip()) else x.strip()
-ids = [norm(x) for x in a.ids.split(",")]
+files = None
+if a.ids:                                    # explicit list of dataset names
+    data_dir = Path(a.dir or "ProteinTimeSeries").resolve()
+    ids = [norm(x) for x in a.ids.split(",")]
+elif a.dir:                                  # only --dir: find the model + reflection pairs ourselves
+    data_dir = Path(a.dir).resolve()
+    found = discover(data_dir, a.reverse)
+    ids = [k for k, _, _ in found]
+    files = {k: (m, r) for k, m, r in found}
+    print(f"Found {len(found)} datasets in {data_dir} (series order; the first is the reference):")
+    for n, (k, m, r) in enumerate(found, 1):
+        print(f"  {n:2d}. {k:20s} model: {m.name:28s} reflections: {r.name}")
+else:                                        # nothing given: built-in CypA 278 K demo series
+    data_dir = Path("ProteinTimeSeries").resolve()
+    ids = list(SERIES_278K)
 labels = [x.strip() for x in a.labels.split(",")] if a.labels else None
 builtin = {tuple(SERIES_278K): "278 K", tuple(SERIES_100K): "100 K"}.get(tuple(ids))   # built-in CypA series
 focus = a.focus or (CYPA_ACTIVE_SITE if builtin else "auto")
@@ -57,7 +73,7 @@ title = a.title or (f"Human cyclophilin A, {builtin}: data sets 1 to 9" if built
 subtitle = a.subtitle or ("Refined models barely differ; the structure factors change across the series" if builtin == "278 K"
                           else "Density from each dataset's structure factors; difference density vs the first dataset")
 zoom_label = a.zoom_label or ("Active site" if builtin else "Focus residues")
-prepare(data_dir, ids, out, a.dmin, a.diff_dmin, focus, a.diff_nsigma, not a.no_download, labels)
+prepare(data_dir, ids, out, a.dmin, a.diff_dmin, focus, a.diff_nsigma, not a.no_download, labels, files)
 if a.prepare_only:
     raise SystemExit(0)
 

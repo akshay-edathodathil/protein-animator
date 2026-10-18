@@ -62,6 +62,70 @@ def find_files(data_dir: Path, ident: str, download=True):
     return model, sf
 
 
+# ---- automatic discovery of datasets in a folder (used when only --dir is given) ----
+_MODEL_RE = re.compile(r"\.(pdb|ent|cif)$", re.I)
+_MODEL_PREFIX = re.compile(r"^(xyzout|xyz|model|coords?)[_-]?", re.I)
+_REFL_PREFIX = re.compile(r"^(hklout|hkl|data|reflections?)[_-]?", re.I)
+
+
+def _is_mtz(path: Path) -> bool:
+    """MTZ files start with the 4 bytes 'MTZ ' whatever they are called (Refmac's HKLOUT may have no extension)."""
+    try:
+        with open(path, "rb") as fh:
+            return fh.read(4) == b"MTZ "
+    except OSError:
+        return False
+
+
+def _num_key(text: str):
+    """Sort key that orders embedded numbers numerically, decimals included (0.2 < 0.10 is False, 0.2 > 0.10 is True)."""
+    return [(0, float(t)) if re.fullmatch(r"\d+(?:\.\d+)?", t) else (1, t.lower())
+            for t in re.split(r"(\d+(?:\.\d+)?)", text) if t]
+
+
+def discover(data_dir, reverse=False):
+    """Pair model files with reflection files in a folder and return [(name, model_path, reflection_path)] in series order.
+
+    Models: .pdb/.ent/.cif.  Reflections: MTZ files (recognised by content, any/no extension) or *-sf.cif.
+    Files are paired by name after dropping a leading XYZOUT_/HKLOUT_ (Refmac), the extension and a trailing -sf,
+    e.g. XYZOUT_0.1and0.9.pdb + HKLOUT_0.1and0.9 -> dataset '0.1and0.9'; t00.pdb + t00.mtz -> 't00'.
+    The series is ordered by the numbers in the names (natural/decimal-aware); use reverse=True to flip it.
+    """
+    data_dir = Path(data_dir)
+    if not data_dir.is_dir():
+        raise SystemExit(f"--dir {data_dir} is not a folder.")
+    models, refl, dup = {}, {}, []
+    for p in sorted(data_dir.iterdir()):
+        if not p.is_file() or p.name.startswith("."):
+            continue
+        n = p.name
+        if n.lower().endswith("-sf.cif"):
+            kind, key = "refl", re.sub(r"-sf\.cif$", "", n, flags=re.I)
+        elif _MODEL_RE.search(n):
+            kind, key = "model", _MODEL_RE.sub("", n)
+        elif _is_mtz(p):
+            kind, key = "refl", re.sub(r"\.mtz$", "", n, flags=re.I)
+        else:
+            continue
+        pre = _MODEL_PREFIX if kind == "model" else _REFL_PREFIX
+        key = pre.sub("", key, count=1) or key
+        table = models if kind == "model" else refl
+        if key in table:
+            dup.append(f"{table[key].name} and {n}")
+        table[key] = p
+    if dup:
+        raise SystemExit("Ambiguous files (same dataset name): " + "; ".join(dup))
+    common = sorted(set(models) & set(refl), key=_num_key, reverse=reverse)
+    lonely = [f"model without reflections: {models[k].name}" for k in sorted(set(models) - set(refl))] + \
+             [f"reflections without model: {refl[k].name}" for k in sorted(set(refl) - set(models))]
+    if lonely:
+        print("WARNING: unpaired files ignored:\n  " + "\n  ".join(lonely))
+    if len(common) < 2:
+        raise SystemExit(f"Found {len(common)} model + reflection pair(s) in {data_dir}; a series needs at least 2.\n"
+                         "Expected e.g. XYZOUT_<name>.pdb + HKLOUT_<name> (Refmac), or <name>.pdb + <name>.mtz / <name>-sf.cif.")
+    return [(k, models[k], refl[k]) for k in common]
+
+
 def _pick(cols, names, what, path):
     for n in names:
         if n in cols:
@@ -156,7 +220,8 @@ def residue_scores(st, diff_grids, noise):
 CYPA_ACTIVE_SITE = "55,60,61,63,72,101,102,103,111,113,121,122,126"
 
 
-def prepare(data_dir, ids, out, dmin, diff_dmin, focus=CYPA_ACTIVE_SITE, nsigma=3.0, fetch_missing=True, labels=None):
+def prepare(data_dir, ids, out, dmin, diff_dmin, focus=CYPA_ACTIVE_SITE, nsigma=3.0, fetch_missing=True, labels=None, files=None):
+    """`files` = optional {id: (model_path, reflection_path)} (from discover()); otherwise files are looked up by id in data_dir."""
     import gemmi
 
     if labels and len(labels) != len(ids):
@@ -165,7 +230,7 @@ def prepare(data_dir, ids, out, dmin, diff_dmin, focus=CYPA_ACTIVE_SITE, nsigma=
     (out / "maps").mkdir(parents=True, exist_ok=True)
     data = []
     for i in ids:
-        mp, sp = find_files(Path(data_dir), i, fetch_missing)
+        mp, sp = files[i] if files else find_files(Path(data_dir), i, fetch_missing)
         print(f"Loading {i}")
         ds = load_dataset(mp, sp)
         ds["id"] = i
